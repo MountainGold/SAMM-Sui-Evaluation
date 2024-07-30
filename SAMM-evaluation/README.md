@@ -42,7 +42,7 @@ After running the test, you need to input some parameters, including:
 num_clients: the number of trader clients (suggestion: 100)
 min_tps: the minimal expected TPS
 max_tps: the maximal expected TPS
-tps_gap: the increase of TPS after a test
+tps_interval: the increase of TPS after a test
 num_repeat: the repeated time of a fixed TPS
 num_groups: the number of test groups with different shards
 num_shards: the number of shards in each group

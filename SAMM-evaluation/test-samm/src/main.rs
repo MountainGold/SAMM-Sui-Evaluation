@@ -1,57 +1,28 @@
 mod faucet;
-use faucet::{get_gas_obj, request_five_gas_obj, get_gas_obj_one_layer, get_and_and_split_gas_obj}; 
+use faucet::{get_gas_obj, get_gas_obj_one_layer}; 
 mod get_client;
 use get_client::client_info;
 mod build_tx;
 use build_tx::TestTransactionSender;
 mod build_contract;
-use build_contract::{samm_builder,samm_testcoin_builder,ContractInfo, samm_data_builder};
+use build_contract::{ContractInfo, samm_data_builder};
 mod execution;
-use execution::{ExecutionReturn, execution_pool, execution_pool_new};
-use tokio::time::{Duration, Instant};
-use tokio::task;
-use sui_json::SuiJsonValue;
-use futures::{future, stream::StreamExt};
-use sui_config::{
-    sui_config_dir, Config, PersistedConfig, SUI_CLIENT_CONFIG, SUI_KEYSTORE_FILENAME,
-};
-use sui_json_rpc_types::{Coin, SuiObjectDataOptions, SuiTypeTag};
-use sui_keys::keystore::{AccountKeystore, FileBasedKeystore};
-use sui_sdk::{
-    sui_client_config::{SuiClientConfig, SuiEnv},
-    wallet_context::WalletContext, types::coin,
-};
-use tracing::info;
-use std::thread;
-use reqwest::Client;
-use serde_json::json;
-use shared_crypto::intent::Intent;
-use sui_sdk::types::{
-    base_types::{ObjectID, SuiAddress},
-    crypto::SignatureScheme::ED25519,
-    digests::TransactionDigest,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Argument, Command, Transaction, TransactionData},
-};
-use std::time::SystemTime;
-use sui_sdk::{rpc_types::SuiTransactionBlockResponseOptions, SuiClient, SuiClientBuilder};
-use std::env;
-use std::fs;
-use std::path::Path;
+use execution::execution_pool_new;
+use tokio::time::Duration;
+
+use sui_sdk::types::base_types::ObjectID;
 use std::io::{self, Write};
-use chrono::{Local, Timelike};
+use chrono::Local;
 use std::fs::File;
 use std::path::PathBuf;
-use std::collections::HashSet;
 use std::process;
 use tokio::time::sleep;
-use std::net::TcpListener;
 
 pub const SUI_FAUCET: &str = "http://127.0.0.1:9123/gas";
 
 pub const SUI_FAUCET_STATUS: &str = "http://127.0.0.1:9123/gas/status";
 
+// Modify the following constants to change the test times
 pub const time_warm_up:f64 = 500.0;
 pub const time_test:f64 = 100.0;
 pub const time_cool_down:f64 = 50.0;
@@ -71,25 +42,6 @@ fn input_integer(prompt: &str) -> usize {
     })
 }
 
-fn input_float(prompt: &str) -> f64 {
-    print!("{}", prompt);
-    io::stdout().flush().unwrap();
-
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("Failed to read line");
-
-    input.trim().parse().unwrap_or_else(|_| {
-        println!("Please enter a valid number!");
-        input_float(prompt)
-    })
-}
-
-fn check_port(port: u16) -> bool {
-    match TcpListener::bind(("127.0.0.1", port)) {
-        Ok(_) => false, // Port is available
-        Err(_) => true, // Port is in use
-    }
-}
 
 fn start_command() -> process::Child {
     process::Command::new("../../sui/target/release/sui-test-validator")
@@ -115,7 +67,6 @@ fn genesis() -> Result<(), anyhow::Error>
     } else {
         eprintln!("Error deleting files");
     }
-    let current_dir = env::current_dir()?;
     // let working_dir = current_dir.join("../suilog");
     // let working_dir_str = working_dir.to_str().ok_or("Failed to convert working_dir to str");
     // let output2 = process::Command::new("sh")
@@ -173,19 +124,19 @@ async fn reset_env() -> Result<process::Child, anyhow::Error>
 async fn main() -> Result<(), anyhow::Error> {
 
     let mut multi_factor: f64 = 5.0;
-    let num_clients: usize = input_integer("Please input the number of clients: ");
-    let mut min_tps_per_minute: usize = input_integer("Please input the min_tps_per_minute: ");
-    let max_tps_per_minute: usize = input_integer("Please input the max_tps_per_minute: ");
-    let tps_interval: usize = input_integer("Please input the tps_interval: ");
-    let repeated_time: usize = input_integer("Please input the repeated time of test: ");
-    let num_groups: usize = input_integer("Please input the number of groups time of test: ");
+    let num_clients: usize = input_integer("Please input num_clients: ");
+    let mut min_tps: usize = input_integer("Please input min_tps: ");
+    let max_tps: usize = input_integer("Please input the max_tps: ");
+    let tps_interval: usize = input_integer("Please input tps_interval: ");
+    let num_repeat: usize = input_integer("Please input num_repeat: ");
+    let num_groups: usize = input_integer("Please input num_groups: ");
 
 
 
-    let mut num_contracts: Vec<usize> = Vec::new();
+    let mut num_shards: Vec<usize> = Vec::new();
     for i in 0..num_groups {
         let tmp: usize = input_integer(&format!("Please input the number of contract in group {}: ", i));
-        num_contracts.push(tmp);
+        num_shards.push(tmp);
     }
 
 
@@ -204,24 +155,24 @@ async fn main() -> Result<(), anyhow::Error> {
     writeln!(&mut info_file, "The number of clients: {}", num_clients).unwrap();
     writeln!(
         &mut info_file,
-        "The min_tps_per_minute: {}",
-        min_tps_per_minute
+        "The min_tps: {}",
+        min_tps
     )
     .unwrap();
     writeln!(
         &mut info_file,
-        "The max_tps_per_minute: {}",
-        max_tps_per_minute
+        "The max_tps: {}",
+        max_tps
     )
     .unwrap();
     writeln!(&mut info_file, "The tps_interval: {}", tps_interval).unwrap();
     writeln!(
         &mut info_file,
         "The repeated time: {}",
-        repeated_time
+        num_repeat
     )
     .unwrap();
-    for ng in num_contracts.clone() 
+    for ng in num_shards.clone() 
     {
         writeln!(&mut info_file, "Number of contracts: {}", ng).unwrap();
     }
@@ -229,20 +180,20 @@ async fn main() -> Result<(), anyhow::Error> {
 
     for i in 0..num_groups
     {
-        // 
-        let mut current_frequency = min_tps_per_minute;
+        // the expected tps in this test
+        let mut current_frequency = min_tps;
+        // path of the result file
         let mut result_path = PathBuf::from(&folder_name);
-        let result_file_name = format!("output{}.txt", num_contracts[i].clone());
+        let result_file_name = format!("output{}.txt", num_shards[i].clone());
         result_path.push(result_file_name);
         let mut result_file = File::create(&result_path)?;
-
-
         let mut result_raw_folder_path = PathBuf::from(&folder_name);
-        result_raw_folder_path.push(format!("raw{}", num_contracts[i].clone()));
+        result_raw_folder_path.push(format!("raw{}", num_shards[i].clone()));
         if let Err(e) = std::fs::create_dir_all(&result_raw_folder_path) {
             eprintln!("Failed to create folder: {}", e);
             return Err(anyhow::Error::msg("Failed to create folder"));
         }
+        // According to chernoff bound, with higher tps, the possibility of sending multiple times higher than expected tps is lower
         if current_frequency <= 100
         {
             multi_factor = 4.0;
@@ -260,22 +211,27 @@ async fn main() -> Result<(), anyhow::Error> {
             multi_factor = 1.2;    
         }
         let mut flag2s = true;
-        while current_frequency <= max_tps_per_minute
+        while current_frequency <= max_tps
         {
             let mut this_success = 0 as usize;
             let mut this_fail = 0 as usize;
             let mut this_latency = 0.0;
-            for t in 0..repeated_time
+            for t in 0..num_repeat
             {
+                let this_num_contract = num_shards[i];
+                println!("Start test round: {}", t);
+                println!("Number of client: {}", num_clients);
+                println!("Number of shards: {}", this_num_contract);
+                println!("Expected TPS: {}", current_frequency);
                 let mut sui_test_validator_process = reset_env().await?;
                 let (client, active_address) = client_info().await?;
-                let this_num_contract = num_contracts[i];
                 let obj_list = get_gas_obj_one_layer(5, active_address).await?;
                 let coin_str = &obj_list[0];
                 let gas_object_id = coin_str.parse::<ObjectID>()?;
-                let tps_interval = ONE_MINUTE / current_frequency as f64;
+                let tps_interval = num_clients as f64 / current_frequency as f64;
                 let this_multi_factor = multi_factor / this_num_contract as f64;
-                let coin_each_client = (current_frequency as f64 * this_multi_factor*  (time_warm_up + time_cool_down + time_test) / ONE_MINUTE).ceil();
+                let coin_each_client = (current_frequency as f64 * this_multi_factor*  (time_warm_up + time_cool_down + time_test) / num_clients as f64).ceil();
+                // Build SAMM smart contract and the transaction queue
                 let execution_queue = samm_data_builder(client.clone(), active_address, this_num_contract, num_clients, gas_object_id, coin_each_client as usize).await?;
                 let mut raw_file_path = result_raw_folder_path.clone();
                 raw_file_path.push(format!("{}-test{}", current_frequency, t));
@@ -283,11 +239,8 @@ async fn main() -> Result<(), anyhow::Error> {
                     eprintln!("Failed to create folder: {}", e);
                     return Err(anyhow::Error::msg("Failed to create folder"));
                 }
-                //println!("{:?}", converted_coin_list[this_num_contract-1].clone());
-                // println!("Contract finished.");
-                // let mut input = String::new();
-                // io::stdin().read_line(&mut input).expect("no input");
                 println!("Execution start!");
+                // Initiate trader clients and start the test
                 let result = execution_pool_new(num_clients, tps_interval, client.clone(), active_address, execution_queue, time_warm_up, time_cool_down, time_test, raw_file_path.clone()).await?;
                 writeln!(
                     &mut result_file,
@@ -298,12 +251,13 @@ async fn main() -> Result<(), anyhow::Error> {
                 this_success += result.success;
                 this_fail += result.fail;
                 this_latency += result.average_latency;
+                println!("Test round: {} finished!", t);
                 println!("Number of client: {}", num_clients);
-                println!("Number of contracts: {}", this_num_contract);
-                println!("Frequency: {}", current_frequency);
+                println!("Number of shards: {}", this_num_contract);
+                println!("Expected TPS: {}", current_frequency);
+                println!("Test time: {}", time_test);
                 println!("Number of successful transactions: {}", result.success);
-                let exp_throughput = num_clients * current_frequency * time_test as usize / ONE_MINUTE as usize;
-                println!("Expected number of successful transactions: {}", exp_throughput);
+                println!("True TPS: {}", result.success as f64 / time_test);
                 println!("Number of failed transactions: {}", result.fail);
                 println!("Average latency: {}", result.average_latency);
                 match sui_test_validator_process.kill() {
@@ -312,7 +266,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 }
             }
             // to speedup
-            // Don't use it during a normal test
+            // If the latency is small and the failure rate is small, we can increase the minimum tps for the next group
             if this_success != 0
             {
                 if this_fail as f64 / this_success as f64 > 0.1
@@ -326,23 +280,23 @@ async fn main() -> Result<(), anyhow::Error> {
                 println!("No successful execution!");
                 break;
             }
-            let this_latency_ave = this_latency / repeated_time as f64;
+            let this_latency_ave = this_latency / num_repeat as f64;
             let exp_success = (num_clients * current_frequency) as f64  * time_test / ONE_MINUTE as f64;
-            let success_ratio = (this_success as f64 / exp_success) / repeated_time as f64;
+            let success_ratio = (this_success as f64 / exp_success) / num_repeat as f64;
             if this_latency_ave < 1.75 && success_ratio > 0.8 && flag2s
             {
-                min_tps_per_minute = current_frequency;
+                min_tps = current_frequency;
             }
             if this_latency_ave >= 1.75
             {
                 flag2s = false;
             }
+            // If the latency is too large or the failure rate is too large, we can stop the test of this group
             if this_latency_ave > 10.0
             {
                 println!("Too large lantencies!");
                 break;
             }
-
             if success_ratio < 0.8
             {
                 println!("Not enough successful executions!");
