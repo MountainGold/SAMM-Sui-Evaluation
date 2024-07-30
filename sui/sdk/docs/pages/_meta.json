@@ -1,0 +1,22 @@
+{
+	"typescript": {
+		"title": "TypeScript SDK",
+		"type": "page"
+	},
+	"dapp-kit": {
+		"title": "dApp Kit",
+		"type": "page"
+	},
+	"kiosk": {
+		"title": "Kiosk SDK",
+		"type": "page"
+	},
+	"bcs": {
+		"title": "BCS",
+		"type": "page"
+	},
+	"wallet-kit": {
+		"title": "Wallet Kit",
+		"type": "page"
+	}
+}
