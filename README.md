@@ -1,5 +1,7 @@
 # SAMM-Sui-Evaluation
 
+Paper link: https://arxiv.org/abs/2406.05568
+
 ## Folders
 ### sui:
 The special version of sui. Modified from sui v1.10.0.
@@ -26,8 +28,8 @@ sudo apt-get install curl git-all cmake gcc libssl-dev pkg-config libclang-dev l
 
 ### Build sui and sui-test-validators
 cd sui
-cargo build --bin sui-test-validator sui --release
+cargo build --bin sui-test-validator --release
 
-
+### Then, turn to the SAMM-evaluation folder for further instructions
 
 
