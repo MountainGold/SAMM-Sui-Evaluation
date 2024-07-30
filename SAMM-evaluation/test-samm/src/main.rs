@@ -52,7 +52,9 @@ pub const SUI_FAUCET: &str = "http://127.0.0.1:9123/gas";
 
 pub const SUI_FAUCET_STATUS: &str = "http://127.0.0.1:9123/gas/status";
 
-
+pub const time_warm_up:f64 = 500.0;
+pub const time_test:f64 = 100.0;
+pub const time_cool_down:f64 = 50.0;
 
 pub const ONE_MINUTE: f64 = 60.0;
 
@@ -90,10 +92,10 @@ fn check_port(port: u16) -> bool {
 }
 
 fn start_command() -> process::Child {
-    process::Command::new("sui-test-validator")
+    process::Command::new("../../sui/target/release/sui-test-validator")
         .env("RUST_LOG", "consensus=off")
         .arg("--config-dir")
-        .arg("/home/hongyin/suilog")
+        .arg("suilog")
         .arg("--epoch-duration-ms")
         .arg("999999999")
         .spawn()
@@ -104,7 +106,7 @@ fn genesis() -> Result<(), anyhow::Error>
 {
     let output1 = process::Command::new("sh")
         .arg("-c")
-        .arg("rm -rf ~/suilog/*")
+        .arg("rm -rf suilog/*")
         .output()
         .expect("failed to execute process");
 
@@ -113,12 +115,20 @@ fn genesis() -> Result<(), anyhow::Error>
     } else {
         eprintln!("Error deleting files");
     }
-
+    let current_dir = env::current_dir()?;
+    // let working_dir = current_dir.join("../suilog");
+    // let working_dir_str = working_dir.to_str().ok_or("Failed to convert working_dir to str");
+    // let output2 = process::Command::new("sh")
+    // .arg("-c")
+    // .arg("../../sui/target/release/sui genesis -f --with-faucet --working-dir=/home/hongyin/suilog")
+    // .output()
+    // .expect("failed to execute process");
     let output2 = process::Command::new("sh")
-    .arg("-c")
-    .arg("sui genesis -f --with-faucet --working-dir=/home/hongyin/suilog")
-    .output()
-    .expect("failed to execute process");
+        .arg("-c")
+        // .arg(format!("../../sui/target/release/sui genesis -f --with-faucet --working-dir={}",working_dir_str))
+        .arg(format!("../../sui/target/release/sui genesis -f --with-faucet --working-dir=suilog"))
+        .output()
+        .expect("failed to execute process");
 
     if output2.status.success() {
         println!("Genesis successful");
@@ -163,24 +173,13 @@ async fn reset_env() -> Result<process::Child, anyhow::Error>
 async fn main() -> Result<(), anyhow::Error> {
 
     let mut multi_factor: f64 = 5.0;
-    // let test_obj = get_and_and_split_gas_obj(client.clone(), 10, active_address, 200).await?;
-    // println!("{:?}",test_obj);
-
-
-    // let exp_type: usize = input_integer("Please input the type of experiment: 1. swap 2. add liquidity 3. remove");
     let num_clients: usize = input_integer("Please input the number of clients: ");
-    // let obj_per_client: usize = input_integer("Please input the number of gas objects per client: ");
     let mut min_tps_per_minute: usize = input_integer("Please input the min_tps_per_minute: ");
     let max_tps_per_minute: usize = input_integer("Please input the max_tps_per_minute: ");
     let tps_interval: usize = input_integer("Please input the tps_interval: ");
     let repeated_time: usize = input_integer("Please input the repeated time of test: ");
     let num_groups: usize = input_integer("Please input the number of groups time of test: ");
 
-
-    let time_warm_up = 500.0;
-    let time_test = 100.0;
-    let time_cool_down = 50.0;
-    // let max_paralell = obj_per_client / 2;
 
 
     let mut num_contracts: Vec<usize> = Vec::new();
@@ -189,7 +188,7 @@ async fn main() -> Result<(), anyhow::Error> {
         num_contracts.push(tmp);
     }
 
-    // let current_dir = env::current_dir()?;
+
     let folder_name = Local::now().format("%Y-%m-%d-%H-%M-%S").to_string();
 
     let mut info_file_path = PathBuf::from(&folder_name);

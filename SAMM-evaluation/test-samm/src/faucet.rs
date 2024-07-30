@@ -164,37 +164,3 @@ pub async fn get_and_and_split_gas_obj(client: sui_sdk::SuiClient, num_obj: usiz
     }
     Ok(rest)
 }
-
-// fn get_gas_obj_concurrent(num_client: usize, obj_per_client: usize, address: SuiAddress) -> Result<Vec<Vec<String>>, i32> {
-//     let total_obj = num_client * obj_per_client;
-//     let total_branch: usize = (total_obj + MAX_GAS_OBJ - 1) / MAX_GAS_OBJ;
-//     let args: Vec<(usize, usize, SuiAddress)> = vec![(1, MAX_GAS_OBJ, address); total_branch];
-//     let results: Vec<Result<Vec<Vec<String>>, i32>> = args
-//         .into_par_iter()
-//         .map(|arg| get_gas_obj(arg.0, arg.1, arg.2))
-//         .collect();
-
-//     let mut obj_raw: Vec<String> = Vec::new();
-
-//     for result in results {
-//         match result {
-//             Ok(objs) => obj_raw.extend(objs[0].clone()),
-//             Err(e) => return Err(e),
-//         }
-//     }
-
-//     if obj_raw.len() != obj_raw.iter().collect::<HashSet<_>>().len() {
-//         eprintln!("Repeated gas objects!");
-//         return Err(-1);
-//     }
-
-//     let mut obj_return: Vec<Vec<String>> = Vec::new();
-
-//     for i in 0..num_client {
-//         let start = i * obj_per_client;
-//         let end = (i + 1) * obj_per_client;
-//         obj_return.push(obj_raw[start..end].to_vec());
-//     }
-
-//     Ok(obj_return)
-// }
