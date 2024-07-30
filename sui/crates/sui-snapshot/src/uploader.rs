@@ -12,9 +12,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use sui_core::db_checkpoint_handler::{
-    STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER, UPLOAD_COMPLETED_MARKER,
-};
+use sui_core::db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER};
 use sui_storage::object_store::util::{
     find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs, path_to_filesystem, put,
 };
@@ -118,18 +116,11 @@ impl StateSnapshotUploader {
     async fn upload_state_snapshot_to_object_store(&self, missing_epochs: Vec<u64>) -> Result<()> {
         let last_missing_epoch = missing_epochs.last().cloned().unwrap_or(0);
         let local_checkpoints_by_epoch =
-            find_all_dirs_with_epoch_prefix(&self.db_checkpoint_store, None).await?;
+            find_all_dirs_with_epoch_prefix(&self.db_checkpoint_store).await?;
         let mut dirs: Vec<_> = local_checkpoints_by_epoch.iter().collect();
         dirs.sort_by_key(|(epoch_num, _path)| *epoch_num);
         for (epoch, db_path) in dirs {
             if missing_epochs.contains(epoch) || *epoch >= last_missing_epoch {
-                let dir_path = path_to_filesystem(self.db_checkpoint_path.clone(), db_path)?;
-                let upload_completed_path = dir_path.join(UPLOAD_COMPLETED_MARKER);
-                if !upload_completed_path.exists() {
-                    info!("State snapshot creation for epoch: {} to wait until db checkpoint uploaded", *epoch);
-                    continue;
-                }
-                info!("Starting state snapshot creation for epoch: {}", *epoch);
                 let state_snapshot_writer = StateSnapshotWriterV1::new_from_store(
                     &self.staging_path,
                     &self.staging_store,
@@ -139,11 +130,10 @@ impl StateSnapshotUploader {
                 )
                 .await?;
                 let db = Arc::new(AuthorityPerpetualTables::open(
-                    &path_to_filesystem(self.db_checkpoint_path.clone(), &db_path.child("store"))?,
+                    &path_to_filesystem(self.db_checkpoint_path.clone(), db_path)?,
                     None,
                 ));
-                state_snapshot_writer.write(*epoch, db).await?;
-                info!("State snapshot creation successful for epoch: {}", *epoch);
+                state_snapshot_writer.write(db).await?;
                 // Drop marker in the output directory that upload completed successfully
                 let bytes = Bytes::from_static(b"success");
                 let success_marker = db_path.child(SUCCESS_MARKER);

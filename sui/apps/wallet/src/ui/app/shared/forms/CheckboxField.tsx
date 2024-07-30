@@ -1,11 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { forwardRef, type ComponentProps, type ReactNode } from 'react';
+import { type ComponentProps, type ReactNode, forwardRef } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
-
-import { Checkbox } from './controls/Checkbox';
 import FormField from './FormField';
+import { Checkbox } from './controls/Checkbox';
 
 type CheckboxFieldProps = {
 	name: string;

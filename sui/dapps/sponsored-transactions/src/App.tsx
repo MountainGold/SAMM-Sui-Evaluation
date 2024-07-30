@@ -1,11 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { SignedTransaction } from '@mysten/sui.js';
 import { SuiTransactionBlockResponse } from '@mysten/sui.js/client';
 import { TransactionBlock } from '@mysten/sui.js/transactions';
 import { ConnectButton, useWalletKit } from '@mysten/wallet-kit';
 import { ComponentProps, ReactNode, useMemo, useState } from 'react';
-
 import { provider } from './utils/rpc';
 import { sponsorTransaction } from './utils/sponsorTransaction';
 
@@ -37,12 +37,8 @@ const CodePanel = ({
 export function App() {
 	const { currentAccount, signTransactionBlock } = useWalletKit();
 	const [loading, setLoading] = useState(false);
-	const [sponsoredTx, setSponsoredTx] = useState<Awaited<
-		ReturnType<typeof sponsorTransaction>
-	> | null>(null);
-	const [signedTx, setSignedTx] = useState<Awaited<ReturnType<typeof signTransactionBlock>> | null>(
-		null,
-	);
+	const [sponsoredTx, setSponsoredTx] = useState<SignedTransaction | null>(null);
+	const [signedTx, setSignedTx] = useState<SignedTransaction | null>(null);
 	const [executedTx, setExecutedTx] = useState<SuiTransactionBlockResponse | null>(null);
 
 	const tx = useMemo(() => {
@@ -97,7 +93,7 @@ export function App() {
 								setLoading(true);
 								try {
 									const signed = await signTransactionBlock({
-										transactionBlock: TransactionBlock.from(sponsoredTx!.bytes),
+										transactionBlock: TransactionBlock.from(sponsoredTx!.transactionBlockBytes),
 									});
 									setSignedTx(signed);
 								} finally {

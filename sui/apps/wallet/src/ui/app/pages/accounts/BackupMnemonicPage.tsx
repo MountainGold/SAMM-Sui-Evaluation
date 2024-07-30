@@ -1,25 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
-import { CardLayout } from '_app/shared/card-layout';
-import { Text } from '_app/shared/text';
-import Alert from '_components/alert';
-import Loading from '_components/loading';
-import { HideShowDisplayBox } from '_src/ui/app/components/HideShowDisplayBox';
 import { ArrowLeft16, Check12 } from '@mysten/icons';
+import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { VerifyPasswordModal } from '../../components/accounts/VerifyPasswordModal';
 import { useAccountSources } from '../../hooks/useAccountSources';
-import { useExportPassphraseMutation } from '../../hooks/useExportPassphraseMutation';
+import { useBackgroundClient } from '../../hooks/useBackgroundClient';
+import { Button } from '_app/shared/ButtonUI';
+import { CardLayout } from '_app/shared/card-layout';
+import { Text } from '_app/shared/text';
+import Alert from '_components/alert';
+import Loading from '_components/loading';
+import { entropyToMnemonic, toEntropy } from '_src/shared/utils/bip39';
+import { HideShowDisplayBox } from '_src/ui/app/components/HideShowDisplayBox';
 
 export function BackupMnemonicPage() {
 	const [passwordCopied, setPasswordCopied] = useState(false);
 	const { state } = useLocation();
 	const { accountSourceID } = useParams();
-	const { data: accountSources, isPending } = useAccountSources();
+	const { data: accountSources, isLoading } = useAccountSources();
 	const selectedSource = useMemo(
 		() => accountSources?.find(({ id }) => accountSourceID === id),
 		[accountSources, accountSourceID],
@@ -28,30 +30,33 @@ export function BackupMnemonicPage() {
 	const [showPasswordDialog, setShowPasswordDialog] = useState(false);
 	const [passwordConfirmed, setPasswordConfirmed] = useState(false);
 	const requirePassword = !isOnboardingFlow || !!selectedSource?.isLocked;
-	const passphraseMutation = useExportPassphraseMutation();
+	const backgroundClient = useBackgroundClient();
+	const mnemonicMutation = useMutation({
+		mutationKey: ['get mnemonic'],
+		mutationFn: async ({ sourceID }: { sourceID: string }) => {
+			const { entropy } = await backgroundClient.getAccountSourceEntropy(sourceID);
+			return entropyToMnemonic(toEntropy(entropy)).split(' ');
+		},
+	});
 	useEffect(() => {
 		(async () => {
-			if (
-				(requirePassword && !passwordConfirmed) ||
-				!passphraseMutation.isIdle ||
-				!accountSourceID
-			) {
+			if ((requirePassword && !passwordConfirmed) || !mnemonicMutation.isIdle || !accountSourceID) {
 				return;
 			}
-			passphraseMutation.mutate({ accountSourceID: accountSourceID });
+			mnemonicMutation.mutate({ sourceID: accountSourceID });
 		})();
-	}, [requirePassword, passwordConfirmed, accountSourceID, passphraseMutation]);
+	}, [requirePassword, passwordConfirmed, accountSourceID, mnemonicMutation]);
 	useEffect(() => {
 		if (requirePassword && !passwordConfirmed && !showPasswordDialog) {
 			setShowPasswordDialog(true);
 		}
 	}, [requirePassword, passwordConfirmed, showPasswordDialog]);
 	const navigate = useNavigate();
-	if (!isPending && selectedSource?.type !== 'mnemonic') {
+	if (!isLoading && selectedSource?.type !== 'mnemonic') {
 		return <Navigate to="/" replace />;
 	}
 	return (
-		<Loading loading={isPending}>
+		<Loading loading={isLoading}>
 			{showPasswordDialog ? (
 				<CardLayout>
 					<VerifyPasswordModal
@@ -60,9 +65,9 @@ export function BackupMnemonicPage() {
 							navigate(-1);
 						}}
 						onVerify={async (password) => {
-							await passphraseMutation.mutateAsync({
+							await backgroundClient.unlockAccountSourceOrAccount({
+								id: selectedSource!.id,
 								password,
-								accountSourceID: selectedSource!.id,
 							});
 							setPasswordConfirmed(true);
 							setShowPasswordDialog(false);
@@ -86,12 +91,12 @@ export function BackupMnemonicPage() {
 									Your recovery phrase makes it easy to back up and restore your account.
 								</Text>
 							</div>
-							<Loading loading={passphraseMutation.isPending}>
-								{passphraseMutation.data ? (
-									<HideShowDisplayBox value={passphraseMutation.data} hideCopy />
+							<Loading loading={mnemonicMutation.isLoading}>
+								{mnemonicMutation.data ? (
+									<HideShowDisplayBox value={mnemonicMutation.data} hideCopy />
 								) : (
 									<Alert>
-										{(passphraseMutation.error as Error)?.message || 'Something went wrong'}
+										{(mnemonicMutation.error as Error)?.message || 'Something went wrong'}
 									</Alert>
 								)}
 							</Loading>

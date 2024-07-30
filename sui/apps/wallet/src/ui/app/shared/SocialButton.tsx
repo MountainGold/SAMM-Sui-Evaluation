@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '_app/shared/text';
 import {
 	SocialFacebook24 as FacebookLogo,
 	SocialGoogle24 as GoogleLogo,
@@ -9,9 +8,9 @@ import {
 	SocialTwitch24 as TwitchLogo,
 } from '@mysten/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { forwardRef, type FunctionComponent, type Ref, type SVGProps } from 'react';
-
+import { forwardRef, type FunctionComponent, type SVGProps, type Ref } from 'react';
 import { ButtonOrLink, type ButtonOrLinkProps } from './utils/ButtonOrLink';
+import { Text } from '_app/shared/text';
 
 const styles = cva(
 	'h-10 w-full cursor-pointer rounded-xl inline-flex items-center justify-center gap-3 px-4 py-2 disabled:opacity-40 focus:opacity-80',
@@ -21,8 +20,8 @@ const styles = cva(
 				microsoft:
 					'bg-white text-steel-dark border border-solid border-steel hover:border-steel-dark',
 				google: 'bg-white text-steel-dark border border-solid border-steel hover:border-steel-dark',
-				facebook: 'bg-facebook border-none text-white',
-				twitch: 'bg-twitch border-none text-white',
+				facebook: 'bg-[#1877F2] border-none text-white',
+				twitch: 'bg-[#6441A5] border-none text-white',
 			},
 		},
 	},
@@ -72,9 +71,9 @@ export const SocialButton = forwardRef(
 				aria-label={showLabel ? undefined : label}
 				{...otherProps}
 			>
-				<IconComponent className="h-6 w-6" />
+				<IconComponent width={24} height={24} />
 				{showLabel && (
-					<Text variant="pBody" weight="semibold">
+					<Text variant="pBodySmall" weight="semibold">
 						{label}
 					</Text>
 				)}

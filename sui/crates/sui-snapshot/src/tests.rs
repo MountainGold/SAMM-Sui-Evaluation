@@ -5,7 +5,6 @@ use crate::reader::StateSnapshotReaderV1;
 use crate::writer::StateSnapshotWriterV1;
 use crate::FileCompression;
 use futures::future::AbortHandle;
-use indicatif::MultiProgress;
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -92,13 +91,12 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
         &local_store_restore_config,
         usize::MAX,
         NonZeroUsize::new(1).unwrap(),
-        MultiProgress::new(),
     )
     .await?;
     let restored_perpetual_db = AuthorityPerpetualTables::open(&restored_db_path, None);
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
-        .read(&restored_perpetual_db, abort_registration, None)
+        .read(&restored_perpetual_db, abort_registration)
         .await?;
     compare_live_objects(&perpetual_db, &restored_perpetual_db, true)?;
     Ok(())
@@ -145,13 +143,12 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
         &local_store_restore_config,
         usize::MAX,
         NonZeroUsize::new(1).unwrap(),
-        MultiProgress::new(),
     )
     .await?;
     let restored_perpetual_db = AuthorityPerpetualTables::open(&restored_db_path, None);
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
-        .read(&restored_perpetual_db, abort_registration, None)
+        .read(&restored_perpetual_db, abort_registration)
         .await?;
     compare_live_objects(
         &perpetual_db,

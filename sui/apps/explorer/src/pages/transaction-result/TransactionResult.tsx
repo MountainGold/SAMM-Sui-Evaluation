@@ -41,7 +41,7 @@ function TransactionResultPageHeader({
 export default function TransactionResult() {
 	const { id } = useParams();
 	const {
-		isPending,
+		isLoading,
 		isError: getTxnErrorBool,
 		data,
 		error: getTxnError,
@@ -52,13 +52,13 @@ export default function TransactionResult() {
 
 	return (
 		<PageLayout
-			loading={isPending}
+			loading={isLoading}
 			gradient={{
 				content: (
 					<TransactionResultPageHeader
 						transaction={data}
 						error={txnErrorText}
-						loading={isPending}
+						loading={isLoading}
 					/>
 				),
 				size: 'md',

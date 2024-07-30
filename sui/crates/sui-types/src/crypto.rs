@@ -48,7 +48,7 @@ use fastcrypto::error::FastCryptoError;
 use fastcrypto::hash::{Blake2b256, HashFunction};
 pub use fastcrypto::traits::Signer;
 use std::fmt::Debug;
-use tracing::{instrument, warn};
+use tracing::warn;
 
 #[cfg(test)]
 #[path = "unit_tests/crypto_tests.rs"]
@@ -479,7 +479,6 @@ pub trait SuiAuthoritySignature {
 }
 
 impl SuiAuthoritySignature for AuthoritySignature {
-    #[instrument(level = "trace", skip_all)]
     fn new_secure<T>(value: &IntentMessage<T>, epoch: &EpochId, secret: &dyn Signer<Self>) -> Self
     where
         T: Serialize,
@@ -490,7 +489,6 @@ impl SuiAuthoritySignature for AuthoritySignature {
         secret.sign(&intent_msg_bytes)
     }
 
-    #[instrument(level = "trace", skip_all)]
     fn verify_secure<T>(
         &self,
         value: &IntentMessage<T>,

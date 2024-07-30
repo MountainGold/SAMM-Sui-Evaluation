@@ -1,41 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAppDispatch, useAppSelector } from '_hooks';
-import { SwapPage } from '_pages/swap';
-import { FromAssets } from '_pages/swap/FromAssets';
-import { setNavVisibility } from '_redux/slices/app';
-import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
-import { persistableStorage } from '_src/shared/analytics/amplitude';
-import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/MethodPayload';
 import { toB64 } from '@mysten/sui.js/utils';
 import { useEffect, useMemo } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
-import { throttle } from 'throttle-debounce';
 
 import { useSuiLedgerClient } from './components/ledger/SuiLedgerClientProvider';
 import { useAccounts } from './hooks/useAccounts';
-import { useAutoLockMinutes } from './hooks/useAutoLockMinutes';
 import { useBackgroundClient } from './hooks/useBackgroundClient';
 import { useInitialPageView } from './hooks/useInitialPageView';
+
 import { useStorageMigrationStatus } from './hooks/useStorageMigrationStatus';
+import { AccountsDev } from './pages/AccountsDevPage';
+import { StorageMigrationPage } from './pages/StorageMigrationPage';
+
 import { AccountsPage } from './pages/accounts/AccountsPage';
 import { AddAccountPage } from './pages/accounts/AddAccountPage';
 import { BackupMnemonicPage } from './pages/accounts/BackupMnemonicPage';
-import { ExportAccountPage } from './pages/accounts/ExportAccountPage';
-import { ExportPassphrasePage } from './pages/accounts/ExportPassphrasePage';
-import { ForgotPasswordIndexPage } from './pages/accounts/forgot-password/ForgotPasswordIndexPage';
-import { ForgotPasswordPage } from './pages/accounts/forgot-password/ForgotPasswordPage';
-import { RecoverManyPage } from './pages/accounts/forgot-password/RecoverManyPage';
-import { RecoverPage } from './pages/accounts/forgot-password/RecoverPage';
-import { ResetPasswordPage } from './pages/accounts/forgot-password/ResetPasswordPage';
-import { ResetWarningPage } from './pages/accounts/forgot-password/ResetWarningPage';
+import { ForgotPasswordPage } from './pages/accounts/ForgotPasswordPage';
 import { ImportLedgerAccountsPage } from './pages/accounts/ImportLedgerAccountsPage';
 import { ImportPassphrasePage } from './pages/accounts/ImportPassphrasePage';
 import { ImportPrivateKeyPage } from './pages/accounts/ImportPrivateKeyPage';
-import { ManageAccountsPage } from './pages/accounts/manage/ManageAccountsPage';
 import { ProtectAccountPage } from './pages/accounts/ProtectAccountPage';
 import { WelcomePage } from './pages/accounts/WelcomePage';
+import { ManageAccountsPage } from './pages/accounts/manage/ManageAccountsPage';
+
 import { ApprovalRequestPage } from './pages/approval-request';
 import HomePage, {
 	AppsPage,
@@ -52,12 +41,19 @@ import HomePage, {
 import TokenDetailsPage from './pages/home/tokens/TokenDetailsPage';
 import { QredoConnectInfoPage } from './pages/qredo-connect/QredoConnectInfoPage';
 import { SelectQredoAccountsPage } from './pages/qredo-connect/SelectQredoAccountsPage';
+
 import { RestrictedPage } from './pages/restricted';
 import SiteConnectPage from './pages/site-connect';
-import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AppType } from './redux/slices/app/AppType';
-import { PageMainLayout } from './shared/page-main-layout/PageMainLayout';
+import PageMainLayout from './shared/page-main-layout';
 import { Staking } from './staking/home';
+
+import { useAppDispatch, useAppSelector } from '_hooks';
+
+import { setNavVisibility } from '_redux/slices/app';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
+import { persistableStorage } from '_src/shared/analytics/amplitude';
+import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/MethodPayload';
 
 const HIDDEN_MENU_PATHS = [
 	'/nft-details',
@@ -67,8 +63,6 @@ const HIDDEN_MENU_PATHS = [
 	'/send/select',
 	'/apps/disconnectapp',
 ];
-
-const notifyUserActiveInterval = 5 * 1000; // 5 seconds
 
 const App = () => {
 	const dispatch = useAppDispatch();
@@ -131,31 +125,9 @@ const App = () => {
 			}
 		})();
 	}, [allLedgerWithoutPublicKey, suiLedgerClient, backgroundClient, connectToLedger]);
-	const { data } = useAutoLockMinutes();
-	const autoLockEnabled = !!data;
-	// use mouse move and key down events to detect user activity
-	// this is used to adjust the auto-lock timeout
-	useEffect(() => {
-		if (!autoLockEnabled) {
-			return;
-		}
-		const sendUpdateThrottled = throttle(
-			notifyUserActiveInterval,
-			() => {
-				backgroundClient.notifyUserActive();
-			},
-			{ noTrailing: true },
-		);
-		document.addEventListener('mousemove', sendUpdateThrottled);
-		document.addEventListener('keydown', sendUpdateThrottled);
-		return () => {
-			document.removeEventListener('mousemove', sendUpdateThrottled);
-			document.removeEventListener('keydown', sendUpdateThrottled);
-		};
-	}, [backgroundClient, autoLockEnabled]);
 
 	const storageMigration = useStorageMigrationStatus();
-	if (storageMigration.isPending || !storageMigration?.data) {
+	if (storageMigration.isLoading || !storageMigration?.data) {
 		return null;
 	}
 	if (storageMigration.data !== 'ready') {
@@ -163,6 +135,7 @@ const App = () => {
 	}
 	return (
 		<Routes>
+			<Route path="forgot-password" element={<ForgotPasswordPage />} />
 			<Route path="restricted" element={<RestrictedPage />} />
 			<Route path="/*" element={<HomePage />}>
 				<Route path="apps/*" element={<AppsPage />} />
@@ -175,8 +148,6 @@ const App = () => {
 				<Route path="send" element={<TransferCoinPage />} />
 				<Route path="send/select" element={<CoinsSelectorPage />} />
 				<Route path="stake/*" element={<Staking />} />
-				<Route path="swap/*" element={<SwapPage />} />
-				<Route path="swap/from-assets" element={<FromAssets />} />
 				<Route path="tokens/*" element={<TokenDetailsPage />} />
 				<Route path="transactions/:status?" element={<TransactionBlocksPage />} />
 				<Route path="*" element={<Navigate to="/tokens" replace={true} />} />
@@ -201,20 +172,17 @@ const App = () => {
 					<Route path=":requestID" element={<QredoConnectInfoPage />} />
 					<Route path=":id/select" element={<SelectQredoAccountsPage />} />
 				</Route>
-				<Route path="export/:accountID" element={<ExportAccountPage />} />
-				<Route path="export/passphrase/:accountSourceID" element={<ExportPassphrasePage />} />
-				<Route path="forgot-password" element={<ForgotPasswordPage />}>
-					<Route index element={<ForgotPasswordIndexPage />} />
-					<Route path="recover" element={<RecoverPage />} />
-					<Route path="recover-many" element={<RecoverManyPage />} />
-					<Route path="warning" element={<ResetWarningPage />} />
-					<Route path="reset" element={<ResetPasswordPage />} />
-				</Route>
+			</Route>
+			<Route path="/account">
+				<Route path="forgot-password" element={<ForgotPasswordPage />} />
 			</Route>
 			<Route path="/dapp/*" element={<HomePage disableNavigation />}>
 				<Route path="connect/:requestID" element={<SiteConnectPage />} />
 				<Route path="approve/:requestID" element={<ApprovalRequestPage />} />
 			</Route>
+			{process.env.NODE_ENV === 'development' ? (
+				<Route path="/accounts-dev" element={<AccountsDev />} />
+			) : null}
 		</Routes>
 	);
 };

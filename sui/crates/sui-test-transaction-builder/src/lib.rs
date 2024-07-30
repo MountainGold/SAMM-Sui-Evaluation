@@ -20,8 +20,8 @@ use sui_types::signature::GenericSignature;
 use sui_types::sui_system_state::SUI_SYSTEM_MODULE_NAME;
 use sui_types::transaction::{
     CallArg, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
-    DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
-    TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
+    TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
 };
 use sui_types::{TypeTag, SUI_SYSTEM_PACKAGE_ID};
 
@@ -74,42 +74,6 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "increment",
-            vec![CallArg::Object(ObjectArg::SharedObject {
-                id: counter_id,
-                initial_shared_version: counter_initial_shared_version,
-                mutable: true,
-            })],
-        )
-    }
-
-    pub fn call_counter_read(
-        self,
-        package_id: ObjectID,
-        counter_id: ObjectID,
-        counter_initial_shared_version: SequenceNumber,
-    ) -> Self {
-        self.move_call(
-            package_id,
-            "counter",
-            "value",
-            vec![CallArg::Object(ObjectArg::SharedObject {
-                id: counter_id,
-                initial_shared_version: counter_initial_shared_version,
-                mutable: false,
-            })],
-        )
-    }
-
-    pub fn call_counter_delete(
-        self,
-        package_id: ObjectID,
-        counter_id: ObjectID,
-        counter_initial_shared_version: SequenceNumber,
-    ) -> Self {
-        self.move_call(
-            package_id,
-            "counter",
-            "delete",
             vec![CallArg::Object(ObjectArg::SharedObject {
                 id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
@@ -306,7 +270,7 @@ impl TestTransactionBuilder {
                 self.sender,
                 vec![self.gas_object],
                 pt,
-                self.gas_price * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+                self.gas_price * TEST_ONLY_GAS_UNIT_FOR_GENERIC,
                 self.gas_price,
             ),
             TestTransactionData::Empty => {

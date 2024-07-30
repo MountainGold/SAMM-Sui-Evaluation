@@ -1,16 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
-import { normalizeMnemonics, validateMnemonics } from '_src/shared/utils/bip39';
-import { PasswordInput } from '_src/ui/app/shared/forms/controls/PasswordInput';
-import { Text } from '_src/ui/app/shared/text';
 import { useZodForm } from '@mysten/core';
 import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
-
 import Alert from '../alert';
+import { Button } from '_app/shared/ButtonUI';
+import { normalizeMnemonics, validateMnemonics } from '_src/shared/utils/bip39';
+import { PasswordInput } from '_src/ui/app/shared/forms/controls/PasswordInput';
+import { Text } from '_src/ui/app/shared/text';
 
 const RECOVERY_PHRASE_WORD_COUNT = 12;
 
@@ -28,7 +27,7 @@ export type FormValues = z.infer<typeof formSchema>;
 
 type ImportRecoveryPhraseFormProps = {
 	submitButtonText: string;
-	cancelButtonText?: string;
+	cancelButtonText: string;
 	onSubmit: SubmitHandler<FormValues>;
 };
 
@@ -60,7 +59,7 @@ export function ImportRecoveryPhraseForm({
 			className="flex flex-col justify-between relative h-full"
 			onSubmit={handleSubmit(onSubmit)}
 		>
-			<div className="grid grid-cols-2 gap-x-2 gap-y-2.5">
+			<div className="grid grid-cols-2 gap-x-2 gap-y-2.5 overflow-auto">
 				{recoveryPhrase.map((_, index) => {
 					const recoveryPhraseId = `recoveryPhrase.${index}` as const;
 					return (
@@ -111,14 +110,12 @@ export function ImportRecoveryPhraseForm({
 					<Alert>{errors.recoveryPhrase.message}</Alert>
 				)}
 				<div className="flex gap-2.5">
-					{cancelButtonText ? (
-						<Button
-							variant="outline"
-							size="tall"
-							text={cancelButtonText}
-							onClick={() => navigate(-1)}
-						/>
-					) : null}
+					<Button
+						variant="outline"
+						size="tall"
+						text={cancelButtonText}
+						onClick={() => navigate(-1)}
+					/>
 					<Button
 						type="submit"
 						disabled={isSubmitting || !isValid}

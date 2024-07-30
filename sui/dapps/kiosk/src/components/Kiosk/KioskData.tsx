@@ -1,26 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Tab } from '@headlessui/react';
-import { formatAddress } from '@mysten/sui.js/utils';
 import { useWalletKit } from '@mysten/wallet-kit';
-import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'react-hot-toast';
-
-import { useKioskDetails } from '../../hooks/kiosk';
-import { useWithdrawMutation } from '../../mutations/kiosk';
-import { TANSTACK_KIOSK_DATA_KEY } from '../../utils/constants';
-import { formatSui, mistToSui } from '../../utils/utils';
-import { Button } from '../Base/Button';
-import { ExplorerLink } from '../Base/ExplorerLink';
-import { Loading } from '../Base/Loading';
+import { Tab } from '@headlessui/react';
 import { OwnedObjects } from '../Inventory/OwnedObjects';
 import { KioskItems } from './KioskItems';
+import { formatAddress } from '@mysten/sui.js/utils';
+import { ExplorerLink } from '../Base/ExplorerLink';
+import { formatSui, mistToSui } from '../../utils/utils';
+import { toast } from 'react-hot-toast';
+import { useKioskDetails } from '../../hooks/kiosk';
+import { Loading } from '../Base/Loading';
+import { useQueryClient } from '@tanstack/react-query';
+import { TANSTACK_KIOSK_DATA_KEY } from '../../utils/constants';
+import { Button } from '../Base/Button';
+import { useWithdrawMutation } from '../../mutations/kiosk';
 
 export function KioskData({ kioskId }: { kioskId: string }) {
 	const { currentAccount } = useWalletKit();
 
-	const { data: kiosk, isPending } = useKioskDetails(kioskId);
+	const { data: kiosk, isLoading } = useKioskDetails(kioskId);
 
 	const queryClient = useQueryClient();
 
@@ -28,13 +27,13 @@ export function KioskData({ kioskId }: { kioskId: string }) {
 		onSuccess: () => {
 			toast.success('Profits withdrawn successfully');
 			// invalidate query to refetch kiosk data and update the balance.
-			queryClient.invalidateQueries({ queryKey: [TANSTACK_KIOSK_DATA_KEY, kioskId] });
+			queryClient.invalidateQueries([TANSTACK_KIOSK_DATA_KEY, kioskId]);
 		},
 	});
 
 	const profits = formatSui(mistToSui(kiosk?.profits));
 
-	if (isPending) return <Loading />;
+	if (isLoading) return <Loading />;
 	return (
 		<div className="container">
 			<div className="my-12 ">
@@ -52,7 +51,7 @@ export function KioskData({ kioskId }: { kioskId: string }) {
 							Profits: {profits} SUI
 							{Number(kiosk.profits) > 0 && (
 								<Button
-									loading={withdrawMutation.isPending}
+									loading={withdrawMutation.isLoading}
 									className=" ease-in-out duration-300 rounded border border-transparent px-4 bg-gray-200 text-xs !py-1 ml-3"
 									onClick={() => withdrawMutation.mutate(kiosk)}
 								>

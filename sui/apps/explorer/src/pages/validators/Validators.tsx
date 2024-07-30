@@ -8,7 +8,7 @@ import {
 	useGetValidatorsEvents,
 	formatPercentageDisplay,
 } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useLatestSuiSystemState } from '@mysten/dapp-kit';
 import { type SuiEvent, type SuiValidatorSummary } from '@mysten/sui.js/client';
 import { Heading, Text } from '@mysten/ui';
 import { lazy, Suspense, useMemo } from 'react';
@@ -225,13 +225,13 @@ export function validatorsTableData(
 }
 
 function ValidatorPageResult() {
-	const { data, isPending, isSuccess, isError } = useSuiClientQuery('getLatestSuiSystemState');
+	const { data, isLoading, isSuccess, isError } = useLatestSuiSystemState();
 
 	const numberOfValidators = data?.activeValidators.length || 0;
 
 	const {
 		data: validatorEvents,
-		isPending: validatorsEventsLoading,
+		isLoading: validatorsEventsLoading,
 		isError: validatorEventError,
 	} = useGetValidatorsEvents({
 		limit: numberOfValidators,
@@ -347,7 +347,7 @@ function ValidatorPageResult() {
 						<div className="mt-8">
 							<ErrorBoundary>
 								<TableHeader>All Validators</TableHeader>
-								{(isPending || validatorsEventsLoading) && (
+								{(isLoading || validatorsEventsLoading) && (
 									<PlaceholderTable
 										rowCount={20}
 										rowHeight="13px"

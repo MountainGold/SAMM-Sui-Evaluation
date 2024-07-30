@@ -11,11 +11,11 @@ serde.workspace = true
 bcs.workspace = true
 reqwest.workspace = true
 axum.workspace = true
-rand.workspace = true
-simulacrum.workspace = true
 sui-types.workspace = true
 sui-core.workspace = true
-workspace-hack.workspace = true
+futures.workspace = true
+tap.workspace = true
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 tokio.workspace = true

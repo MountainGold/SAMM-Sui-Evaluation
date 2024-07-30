@@ -39,7 +39,7 @@ use prometheus::{
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_with_registry, IntCounter, IntCounterVec, IntGauge, Registry,
 };
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::string::ToString;
 use std::sync::Arc;
 use std::time::Duration;
@@ -245,9 +245,6 @@ pub enum AggregatorProcessTransactionError {
         overloaded_stake: StakeUnit,
         errors: GroupedErrors,
     },
-
-    #[error("Transaction is already finalized but with different user signatures")]
-    TxAlreadyFinalizedWithDifferentUserSignatures,
 }
 
 #[derive(Error, Debug)]
@@ -307,7 +304,6 @@ struct ProcessTransactionState {
     // before we know for sure no tx can reach quorum. Namely, stake of the most
     // promising tx + retryable stake < 2f+1.
     retryable: bool,
-    tx_finalized_with_different_user_sig: bool,
 
     conflicting_tx_total_stake: StakeUnit,
     most_staked_conflicting_tx_stake: StakeUnit,
@@ -353,31 +349,6 @@ impl ProcessTransactionState {
         }
         false
     }
-
-    pub fn check_if_error_indicates_tx_finalized_with_different_user_sig(
-        &self,
-        validity_threshold: StakeUnit,
-    ) -> bool {
-        // In some edge cases, the client may send the same transaction multiple times but with different user signatures.
-        // When this happens, the "minority" tx will fail in safe_client because the certificate verification would fail
-        // and return Sui::FailedToVerifyTxCertWithExecutedEffects.
-        // Here, we check if there are f+1 validators return this error. If so, the transaction is already finalized
-        // with a different set of user signatures. It's not trivial to return the results of that successful transaction
-        // because we don't want fullnode to store the transaction with non-canonical user signatures. Given that this is
-        // very rare, we simply return an error here.
-        let invalid_sig_stake: StakeUnit = self
-            .errors
-            .iter()
-            .filter_map(|(e, _, stake)| {
-                if matches!(e, SuiError::FailedToVerifyTxCertWithExecutedEffects { .. }) {
-                    Some(stake)
-                } else {
-                    None
-                }
-            })
-            .sum();
-        invalid_sig_stake >= validity_threshold
-    }
 }
 
 struct ProcessCertificateState {
@@ -389,6 +360,7 @@ struct ProcessCertificateState {
     non_retryable_stake: StakeUnit,
     non_retryable_errors: Vec<(SuiError, Vec<AuthorityName>, StakeUnit)>,
     retryable_errors: Vec<(SuiError, Vec<AuthorityName>, StakeUnit)>,
+    object_map: HashMap<TransactionEffectsDigest, HashSet<Object>>,
     // As long as none of the exit criteria are met we consider the state retryable
     // 1) >= 2f+1 signatures
     // 2) >= f+1 non-retryable errors
@@ -1163,7 +1135,6 @@ where
             retryable: true,
             conflicting_tx_digests: Default::default(),
             conflicting_tx_total_stake: 0,
-            tx_finalized_with_different_user_sig: false,
             most_staked_conflicting_tx_stake: 0,
         };
 
@@ -1347,13 +1318,6 @@ where
         }
 
         if !state.retryable {
-            if state.tx_finalized_with_different_user_sig
-                || state.check_if_error_indicates_tx_finalized_with_different_user_sig(
-                    self.committee.validity_threshold(),
-                )
-            {
-                return AggregatorProcessTransactionError::TxAlreadyFinalizedWithDifferentUserSignatures;
-            }
             return AggregatorProcessTransactionError::FatalTransaction {
                 errors: group_errors(state.errors),
             };
@@ -1529,16 +1493,9 @@ where
             if most_staked_effects_digest_stake + self.get_retryable_stake(&state)
                 < self.committee.quorum_threshold()
             {
-                if state.check_if_error_indicates_tx_finalized_with_different_user_sig(
-                    self.committee.validity_threshold(),
-                ) {
-                    state.retryable = false;
-                    state.tx_finalized_with_different_user_sig = true;
-                } else {
-                    panic!(
-                        "We have violated our safety assumption or there is a fork. Tx: {tx_digest:?}. Non-quorum effects: {non_quorum_effects:?}."
-                    );
-                }
+                panic!(
+                    "We have violated our safety assumption or there is a fork. Tx: {tx_digest:?}. Non-quorum effects: {non_quorum_effects:?}."
+                );
             }
 
             let mut involved_validators = Vec::new();
@@ -1572,11 +1529,16 @@ where
         &self,
         certificate: CertifiedTransaction,
     ) -> Result<
-        (VerifiedCertifiedTransactionEffects, TransactionEvents),
+        (
+            VerifiedCertifiedTransactionEffects,
+            TransactionEvents,
+            Vec<Object>,
+        ),
         AggregatorProcessCertificateError,
     > {
         let state = ProcessCertificateState {
             effects_map: MultiStakeAggregator::new(self.committee.clone()),
+            object_map: HashMap::new(),
             non_retryable_stake: 0,
             non_retryable_errors: vec![],
             retryable_errors: vec![],
@@ -1742,12 +1704,18 @@ where
         state: &mut ProcessCertificateState,
         response: SuiResult<HandleCertificateResponseV2>,
         name: AuthorityName,
-    ) -> SuiResult<Option<(VerifiedCertifiedTransactionEffects, TransactionEvents)>> {
+    ) -> SuiResult<
+        Option<(
+            VerifiedCertifiedTransactionEffects,
+            TransactionEvents,
+            Vec<Object>,
+        )>,
+    > {
         match response {
             Ok(HandleCertificateResponseV2 {
                 signed_effects,
                 events,
-                ..
+                fastpath_input_objects,
             }) => {
                 debug!(
                     ?tx_digest,
@@ -1756,7 +1724,7 @@ where
                 );
                 let effects_digest = *signed_effects.digest();
                 // Note: here we aggregate votes by the hash of the effects structure
-                match state.effects_map.insert(
+                let result = match state.effects_map.insert(
                     (signed_effects.epoch(), effects_digest),
                     signed_effects.clone(),
                 ) {
@@ -1784,10 +1752,25 @@ where
                         );
                         ct.verify(&committee).map(|ct| {
                             debug!(?tx_digest, "Got quorum for validators handle_certificate.");
-                            Some((ct, events))
+                            let fastpath_input_objects =
+                                state.object_map.remove(&effects_digest).unwrap_or_default();
+                            Some((ct, events, fastpath_input_objects.into_iter().collect()))
                         })
                     }
+                };
+                if result.is_ok() {
+                    // We verified the objects' relevance and content's integrity in `safe_client.rs`
+                    // based on the effects. Only responses with legit objects will reach here.
+                    // Therefore, as long as we have quorum on effects, we have quorum on objects.
+                    // One thing to note is objects may be missing in some responses e.g. validators are on
+                    // different code versions, but this is fine as long as their content is correct.
+                    state
+                        .object_map
+                        .entry(effects_digest)
+                        .or_default()
+                        .extend(fastpath_input_objects.into_iter());
                 }
+                result
             }
             Err(err) => Err(err),
         }

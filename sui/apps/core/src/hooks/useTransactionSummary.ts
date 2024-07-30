@@ -7,14 +7,14 @@ import {
 import { useMemo } from 'react';
 
 import { getBalanceChangeSummary } from '../utils/transaction/getBalanceChangeSummary';
-import { getGasSummary } from '../utils/transaction/getGasSummary';
-import { getLabel } from '../utils/transaction/getLabel';
 import {
-	getObjectChangeSummary,
 	SuiObjectChangeWithDisplay,
+	getObjectChangeSummary,
 } from '../utils/transaction/getObjectChangeSummary';
-import { getObjectDisplayLookup } from '../utils/transaction/getObjectDisplayLookup';
+import { getLabel } from '../utils/transaction/getLabel';
+import { getGasSummary } from '../utils/transaction/getGasSummary';
 import { useMultiGetObjects } from './useMultiGetObjects';
+import { getObjectDisplayLookup } from '../utils/transaction/getObjectDisplayLookup';
 
 export function useTransactionSummary({
 	transaction,

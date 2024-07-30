@@ -1,12 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SerializedUIAccount } from '_src/background/accounts/Account';
-import { isZkLoginAccountSerializedUI } from '_src/background/accounts/zklogin/ZkLoginAccount';
+import { useUnlockAccount } from './UnlockAccountContext';
 
 import { Button } from '../../shared/ButtonUI';
 import { SocialButton } from '../../shared/SocialButton';
-import { useUnlockAccount } from './UnlockAccountContext';
+import { type SerializedUIAccount } from '_src/background/accounts/Account';
+import { isZkAccountSerializedUI } from '_src/background/accounts/zk/ZkAccount';
 
 export type UnlockAccountButtonProps = {
 	account: SerializedUIAccount;
@@ -17,19 +17,19 @@ export function UnlockAccountButton({
 	title = 'Unlock Account',
 }: UnlockAccountButtonProps) {
 	const { isPasswordUnlockable } = account;
-	const { unlockAccount, isPending } = useUnlockAccount();
+	const { unlockAccount, isLoading } = useUnlockAccount();
 
 	if (isPasswordUnlockable) {
 		return <Button text={title} onClick={() => unlockAccount(account)} />;
 	}
-	if (isZkLoginAccountSerializedUI(account)) {
+	if (isZkAccountSerializedUI(account)) {
 		return (
 			<SocialButton
 				provider={account.provider}
 				onClick={() => {
 					unlockAccount(account);
 				}}
-				loading={isPending}
+				loading={isLoading}
 				showLabel
 			/>
 		);

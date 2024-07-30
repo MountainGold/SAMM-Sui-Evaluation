@@ -16,30 +16,28 @@ import { Divider } from '~/ui/Divider';
 import { PageHeader } from '~/ui/PageHeader';
 import { LOCAL_STORAGE_SPLIT_PANE_KEYS, SplitPanes } from '~/ui/SplitPanes';
 import { TabHeader, TabsList, TabsTrigger } from '~/ui/Tabs';
-import { TotalStaked } from './TotalStaked';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 const TOP_PANEL_MIN_SIZE = 20;
 
 function AddressResultPageHeader({ address, loading }: { address: string; loading?: boolean }) {
-	const { data: domainName, isLoading } = useResolveSuiNSName(address);
+	const { data: domainName, isFetching } = useResolveSuiNSName(address);
 
 	return (
 		<PageHeader
-			loading={loading || isLoading}
+			loading={loading || isFetching}
 			type="Address"
 			title={address}
 			subtitle={domainName}
 			before={<Domain32 className="h-6 w-6 text-steel-darker sm:h-10 sm:w-10" />}
-			after={<TotalStaked address={address} />}
 		/>
 	);
 }
 
 function SuiNSAddressResultPageHeader({ name }: { name: string }) {
-	const { data: address, isLoading } = useResolveSuiNSAddress(name);
+	const { data: address, isFetching } = useResolveSuiNSAddress(name);
 
-	return <AddressResultPageHeader address={address ?? name} loading={isLoading} />;
+	return <AddressResultPageHeader address={address ?? name} loading={isFetching} />;
 }
 
 function AddressResult({ address }: { address: string }) {
@@ -73,7 +71,7 @@ function AddressResult({ address }: { address: string }) {
 							<div className="my-8">
 								<Divider />
 							</div>
-							{rightPane.panel}
+							<div className="h-coinsAndAssetsContainer">{rightPane.panel}</div>
 						</>
 					)}
 				</ErrorBoundary>

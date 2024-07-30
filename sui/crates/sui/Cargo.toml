@@ -18,10 +18,12 @@ signature.workspace = true
 camino.workspace = true
 tokio = { workspace = true, features = ["full"] }
 async-trait.workspace = true
+serde_with.workspace = true
 tracing.workspace = true
 bcs.workspace = true
 clap.workspace = true
 bip32.workspace = true
+prettytable-rs.workspace = true
 rand.workspace = true
 tap.workspace = true
 inquire.workspace = true
@@ -33,10 +35,11 @@ const-str.workspace = true
 num-bigint.workspace = true
 regex.workspace = true
 reqwest.workspace = true
-im.workspace = true
+move-bytecode-verifier = { path = "../../external-crates/move/move-bytecode-verifier" }
+sui-adapter = { path = "../../sui-execution/latest/sui-adapter", package = "sui-adapter-latest" }
+sui-verifier = { path = "../../sui-execution/latest/sui-verifier", package = "sui-verifier-latest" }
 
 sui-config.workspace = true
-sui-execution = { path = "../../sui-execution" }
 sui-swarm-config.workspace = true
 sui-genesis-builder.workspace = true
 sui-types.workspace = true
@@ -50,7 +53,6 @@ sui-move = { workspace = true, features = ["all"] }
 sui-move-build.workspace = true
 sui-protocol-config.workspace = true
 shared-crypto.workspace = true
-sui-replay.workspace = true
 
 fastcrypto.workspace = true
 fastcrypto-zkp.workspace = true
@@ -60,14 +62,15 @@ rustyline-derive.workspace = true
 colored.workspace = true
 unescape.workspace = true
 shell-words.workspace = true
+rocksdb.workspace = true
 
 tempfile.workspace = true
 telemetry-subscribers.workspace = true
 
 move-core-types.workspace = true
 move-package.workspace = true
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 csv.workspace = true
-workspace-hack.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 jemalloc-ctl.workspace = true

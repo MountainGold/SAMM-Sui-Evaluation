@@ -1,18 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { parseSerializedSignature, PublicKey, SignatureScheme } from '@mysten/sui.js/cryptography';
-import { parsePartialSignatures } from '@mysten/sui.js/multisig';
-import { toB64 } from '@mysten/sui.js/utils';
-import { publicKeyFromRawBytes } from '@mysten/sui.js/verify';
-import { AlertCircle } from 'lucide-react';
-import { useState } from 'react';
-
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { toB64 } from '@mysten/sui.js/utils';
+import { PublicKey, SignatureScheme, parseSerializedSignature } from '@mysten/sui.js/cryptography';
+import { AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { Label } from '@/components/ui/label';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { publicKeyFromRawBytes } from '@mysten/sui.js/verify';
+import { parsePartialSignatures } from '@mysten/sui.js/multisig';
 
 interface SignaturePubkeyPair {
 	signatureScheme: SignatureScheme;

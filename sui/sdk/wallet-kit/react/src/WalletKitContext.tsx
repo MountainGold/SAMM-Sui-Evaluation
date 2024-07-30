@@ -2,12 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-	createWalletKitCore,
-	WalletKitCore,
-	WalletKitCoreOptions,
-	WalletKitCoreState,
-} from '@mysten/wallet-kit-core';
-import {
 	createContext,
 	ReactNode,
 	useContext,
@@ -16,7 +10,12 @@ import {
 	useRef,
 	useSyncExternalStore,
 } from 'react';
-
+import {
+	createWalletKitCore,
+	WalletKitCore,
+	WalletKitCoreOptions,
+	WalletKitCoreState,
+} from '@mysten/wallet-kit-core';
 import { registerUnsafeBurnerWallet } from './UnsafeBurnerWallet';
 
 export const WalletKitContext = createContext<WalletKitCore | null>(null);

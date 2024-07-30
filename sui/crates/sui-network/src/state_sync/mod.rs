@@ -826,9 +826,7 @@ async fn get_latest_from_peer(
     if !info.on_same_chain_as_us {
         return;
     }
-    let Some((highest_checkpoint, low_watermark)) =
-        query_peer_for_latest_info(&mut client, timeout).await
-    else {
+    let Some((highest_checkpoint, low_watermark)) = query_peer_for_latest_info(&mut client, timeout).await else {
         return;
     };
     peer_heights
@@ -1036,17 +1034,10 @@ where
         debug_assert!(current.sequence_number().saturating_add(1) == next);
 
         // Verify the checkpoint
-        let checkpoint = 'cp: {
+        let checkpoint = {
             let checkpoint = maybe_checkpoint.ok_or_else(|| {
                 anyhow::anyhow!("no peers were able to help sync checkpoint {next}")
             })?;
-            // Skip verification for manually pinned checkpoints.
-            if pinned_checkpoints
-                .binary_search_by_key(checkpoint.sequence_number(), |(seq_num, _digest)| *seq_num)
-                .is_ok()
-            {
-                break 'cp VerifiedCheckpoint::new_unchecked(checkpoint);
-            }
             match verify_checkpoint(&current, &store, checkpoint) {
                 Ok(verified_checkpoint) => verified_checkpoint,
                 Err(checkpoint) => {
@@ -1292,13 +1283,9 @@ where
         PeerCheckpointRequestType::Content,
     )
     .with_checkpoint(*checkpoint.sequence_number());
-    let Some(contents) = get_full_checkpoint_contents(peers, &store, &checkpoint, timeout).await
-    else {
+    let Some(contents) = get_full_checkpoint_contents(peers, &store, &checkpoint, timeout).await else {
         // Delay completion in case of error so we don't hammer the network with retries.
-        let duration = peer_heights
-            .read()
-            .unwrap()
-            .wait_interval_when_no_peer_to_sync_content();
+        let duration = peer_heights.read().unwrap().wait_interval_when_no_peer_to_sync_content();
         tokio::time::sleep(duration).await;
         return Err(checkpoint);
     };

@@ -125,14 +125,14 @@ where
     pub async fn get_with(&self, key: K, init: impl Future<Output = V>) -> V {
         let shard = self.read_shard(&key).await;
         let value = shard.peek(&key);
-        if let Some(value) = value {
-            return value.clone();
+        if value.is_some() {
+            return value.unwrap().clone();
         }
         drop(shard);
         let mut shard = self.write_shard(&key).await;
         let value = shard.get(&key);
-        if let Some(value) = value {
-            return value.clone();
+        if value.is_some() {
+            return value.unwrap().clone();
         }
         let value = init.await;
         let cloned_value = value.clone();

@@ -1,8 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import clsx from 'clsx';
-import { forwardRef, type ComponentProps, type ReactNode, type Ref } from 'react';
+import { type ComponentProps, forwardRef, type Ref, type ReactNode } from 'react';
 import { Link, type LinkProps } from 'react-router-dom';
 
 import LoadingIndicator from '../../components/loading/LoadingIndicator';
@@ -71,7 +70,6 @@ export const ButtonOrLink = forwardRef<HTMLAnchorElement | HTMLButtonElement, Bu
 			<WithTooltip title={title}>
 				<button
 					{...props}
-					className={clsx(!isDisabled && 'cursor-pointer', props.className)}
 					type={props.type || 'button'}
 					ref={ref as Ref<HTMLButtonElement>}
 					disabled={isDisabled}

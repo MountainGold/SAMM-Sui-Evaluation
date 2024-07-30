@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import BigNumber from 'bignumber.js';
-import { describe, expect, it } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
-import { CoinFormat, formatBalance } from '../useFormatCoin';
+import { formatBalance, CoinFormat } from '../useFormatCoin';
 
 const SUI_DECIMALS = 9;
 

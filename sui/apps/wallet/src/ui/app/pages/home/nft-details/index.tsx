@@ -1,24 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useGetKioskContents } from '@mysten/core';
+import { ArrowUpRight12, ArrowRight16 } from '@mysten/icons';
+import { formatAddress } from '@mysten/sui.js/utils';
+import cl from 'classnames';
+import { Navigate, useSearchParams } from 'react-router-dom';
+
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { Button } from '_app/shared/ButtonUI';
-import { Collapsible } from '_app/shared/collapse';
 import { Link } from '_app/shared/Link';
-import { ExplorerLinkType } from '_components/explorer-link/ExplorerLinkType';
+import { Collapsible } from '_app/shared/collapse';
 import { LabelValueItem } from '_components/LabelValueItem';
 import { LabelValuesContainer } from '_components/LabelValuesContainer';
+import { ExplorerLinkType } from '_components/explorer-link/ExplorerLinkType';
 import Loading from '_components/loading';
 import { NFTDisplayCard } from '_components/nft-display';
 import { useGetNFTMeta, useNFTBasicData, useOwnedNFT } from '_hooks';
 import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
-import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import PageTitle from '_src/ui/app/shared/PageTitle';
-import { useGetKioskContents } from '@mysten/core';
-import { ArrowRight16, ArrowUpRight12 } from '@mysten/icons';
-import { formatAddress } from '@mysten/sui.js/utils';
-import cl from 'clsx';
-import { Navigate, useSearchParams } from 'react-router-dom';
 
 type NftFields = {
 	metadata?: { fields?: { attributes?: { fields?: { keys: string[]; values: string[] } } } };
@@ -28,7 +28,7 @@ function NFTDetailsPage() {
 	const [searchParams] = useSearchParams();
 	const nftId = searchParams.get('objectId');
 	const accountAddress = useActiveAddress();
-	const { data: objectData, isPending: isNftLoading } = useOwnedNFT(nftId || '', accountAddress);
+	const { data: objectData, isLoading } = useOwnedNFT(nftId || '', accountAddress);
 	const isTransferable =
 		!!objectData &&
 		objectData.content?.dataType === 'moveObject' &&
@@ -55,7 +55,7 @@ function NFTDetailsPage() {
 			);
 	const metaKeys: string[] = metaFields ? metaFields.keys : [];
 	const metaValues = metaFields ? metaFields.values : [];
-	const { data: nftDisplayData, isPending: isPendingDisplay } = useGetNFTMeta(nftId || '');
+	const { data: nftDisplayData, isLoading: isLoadingDisplay } = useGetNFTMeta(nftId || '');
 	const objectExplorerLink = useExplorerLink({
 		type: ExplorerLinkType.object,
 		objectID: nftId || '',
@@ -70,16 +70,14 @@ function NFTDetailsPage() {
 		type: ExplorerLinkType.address,
 		address: ownerAddress,
 	});
-	const isGuardLoading = useUnlockedGuard();
-	const isPending = isNftLoading || isPendingDisplay || isGuardLoading;
 
 	return (
 		<div
 			className={cl('flex flex-1 flex-col flex-nowrap gap-5', {
-				'items-center': isPending,
+				'items-center': isLoading || isLoadingDisplay,
 			})}
 		>
-			<Loading loading={isPending}>
+			<Loading loading={isLoading || isLoadingDisplay}>
 				{objectData ? (
 					<>
 						<PageTitle back />

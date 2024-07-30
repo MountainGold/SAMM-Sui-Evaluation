@@ -182,12 +182,6 @@ pub enum ExecutionFailureStatus {
         Please run the Sui Move Verifier for more information."
     )]
     SuiMoveVerificationTimedout,
-
-    #[error("Wrapping a shared object is not allowed.")]
-    SharedObjectWrapped,
-
-    #[error("Certificate cannot be executed due to a dependency on a deleted shared object")]
-    InputObjectDeleted,
     // NOTE: if you want to add a new enum,
     // please add it at the end for Rust SDK backward compatibility.
 }
@@ -240,15 +234,10 @@ pub enum CommandArgumentError {
         Taken values cannot be used again."
     )]
     InvalidValueUsage,
-    #[error("Immutable objects cannot be passed by-value.")]
+    #[error("Immutable and shared objects cannot be passed by-value.")]
     InvalidObjectByValue,
     #[error("Immutable objects cannot be passed by mutable reference, &mut.")]
     InvalidObjectByMutRef,
-    #[error(
-        "Shared object operations such a wrapping, freezing, or converting to owned are not \
-        allowed."
-    )]
-    SharedObjectOperationNotAllowed,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Hash, Error)]

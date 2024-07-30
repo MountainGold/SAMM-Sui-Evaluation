@@ -10,14 +10,12 @@ import {
 	getRecognizedUnRecognizedTokenChanges,
 } from '@mysten/core';
 import { Heading, Text } from '@mysten/ui';
-import clsx from 'clsx';
 import { useMemo } from 'react';
 
 import { Banner } from '~/ui/Banner';
 import { Coin } from '~/ui/CoinsStack';
 import { AddressLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
+import { TransactionBlockCard, TransactionBlockCardSection } from '~/ui/TransactionBlockCard';
 
 interface BalanceChangesProps {
 	changes: BalanceChangeSummary;
@@ -82,7 +80,7 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
 	);
 
 	return (
-		<CollapsibleCard
+		<TransactionBlockCard
 			title={
 				<div className="flex w-full flex-wrap items-center justify-between gap-y-2">
 					<Heading variant="heading6/semibold" color="steel-darker">
@@ -107,26 +105,21 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
 		>
 			<div className="flex flex-col gap-2">
 				{recognizedTokenChanges.map((change, index) => (
-					<CollapsibleSection key={index + change.coinType}>
+					<TransactionBlockCardSection key={index + change.coinType}>
 						<BalanceChangeEntry change={change} />
-					</CollapsibleSection>
+					</TransactionBlockCardSection>
 				))}
 				{unRecognizedTokenChanges.length > 0 && (
-					<div
-						className={clsx(
-							'flex flex-col gap-2',
-							recognizedTokenChanges?.length && 'border-t border-gray-45 pt-2',
-						)}
-					>
+					<div className="flex flex-col gap-2 border-t border-gray-45 pt-2">
 						{unRecognizedTokenChanges.map((change, index) => (
-							<CollapsibleSection key={index + change.coinType}>
+							<TransactionBlockCardSection key={index + change.coinType}>
 								<BalanceChangeEntry change={change} />
-							</CollapsibleSection>
+							</TransactionBlockCardSection>
 						))}
 					</div>
 				)}
 			</div>
-		</CollapsibleCard>
+		</TransactionBlockCard>
 	);
 }
 

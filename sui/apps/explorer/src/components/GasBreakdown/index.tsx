@@ -14,8 +14,7 @@ import { CopyToClipboard } from '~/ui/CopyToClipboard';
 import { DescriptionItem } from '~/ui/DescriptionList';
 import { Divider } from '~/ui/Divider';
 import { AddressLink, ObjectLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
+import { TransactionBlockCard, TransactionBlockCardSection } from '~/ui/TransactionBlockCard';
 
 interface GasProps {
 	amount?: bigint | number | string;
@@ -111,7 +110,7 @@ export function GasBreakdown({ summary }: GasBreakdownProps) {
 	const isSponsored = gasData.isSponsored;
 
 	return (
-		<CollapsibleCard
+		<TransactionBlockCard
 			collapsible
 			title={
 				<div className="flex flex-col gap-2">
@@ -122,7 +121,7 @@ export function GasBreakdown({ summary }: GasBreakdownProps) {
 				</div>
 			}
 		>
-			<CollapsibleSection>
+			<TransactionBlockCardSection>
 				{isSponsored && owner && (
 					<div className="mb-4 flex items-center gap-2 rounded-xl bg-sui/10 px-3 py-2">
 						<Text variant="pBody/medium" color="steel-darker">
@@ -182,7 +181,7 @@ export function GasBreakdown({ summary }: GasBreakdownProps) {
 						<GasAmount amount={BigInt(gasPrice)} />
 					</DescriptionItem>
 				</div>
-			</CollapsibleSection>
-		</CollapsibleCard>
+			</TransactionBlockCardSection>
+		</TransactionBlockCard>
 	);
 }

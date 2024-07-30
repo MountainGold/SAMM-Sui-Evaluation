@@ -29,7 +29,7 @@ use sui_types::digests::TransactionDigest;
 use sui_types::object::Object;
 use sui_types::transaction::SenderSignedData;
 use sui_types::transaction::TransactionDataAPI;
-use sui_types::transaction::{EndOfEpochTransactionKind, TransactionKind};
+use sui_types::transaction::TransactionKind;
 use tracing::error;
 
 /// This trait defines the interfaces for fetching data from some local or remote store
@@ -83,8 +83,6 @@ pub(crate) trait DataFetcher {
         &self,
         reverse: bool,
     ) -> Result<Vec<SuiEvent>, ReplayEngineError>;
-
-    async fn get_chain_id(&self) -> Result<String, ReplayEngineError>;
 }
 
 #[derive(Clone)]
@@ -210,12 +208,6 @@ impl DataFetcher for Fetchers {
         match self {
             Fetchers::Remote(q) => q.get_epoch_change_events(reverse).await,
             Fetchers::NodeStateDump(q) => q.get_epoch_change_events(reverse).await,
-        }
-    }
-    async fn get_chain_id(&self) -> Result<String, ReplayEngineError> {
-        match self {
-            Fetchers::Remote(q) => q.get_chain_id().await,
-            Fetchers::NodeStateDump(q) => q.get_chain_id().await,
         }
     }
 }
@@ -515,30 +507,14 @@ impl DataFetcher for RemoteFetcher {
         let orig_tx: SenderSignedData = bcs::from_bytes(&tx_info.raw_transaction).unwrap();
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
-        match tx_kind_orig {
-            TransactionKind::ChangeEpoch(change) => {
-                // Backfill cache
-                self.epoch_info_cache.write().put(
-                    epoch_id,
-                    (change.epoch_start_timestamp_ms, reference_gas_price),
-                );
+        if let TransactionKind::ChangeEpoch(change) = tx_kind_orig {
+            // Backfill cache
+            self.epoch_info_cache.write().put(
+                epoch_id,
+                (change.epoch_start_timestamp_ms, reference_gas_price),
+            );
 
-                return Ok((change.epoch_start_timestamp_ms, reference_gas_price));
-            }
-            TransactionKind::EndOfEpochTransaction(kinds) => {
-                for kind in kinds {
-                    if let EndOfEpochTransactionKind::ChangeEpoch(change) = kind {
-                        // Backfill cache
-                        self.epoch_info_cache.write().put(
-                            epoch_id,
-                            (change.epoch_start_timestamp_ms, reference_gas_price),
-                        );
-
-                        return Ok((change.epoch_start_timestamp_ms, reference_gas_price));
-                    }
-                }
-            }
-            _ => {}
+            return Ok((change.epoch_start_timestamp_ms, reference_gas_price));
         }
         Err(ReplayEngineError::InvalidEpochChangeTx { epoch: epoch_id })
     }
@@ -574,16 +550,6 @@ impl DataFetcher for RemoteFetcher {
         }
 
         Ok(epoch_change_events)
-    }
-
-    async fn get_chain_id(&self) -> Result<String, ReplayEngineError> {
-        let chain_id = self
-            .rpc_client
-            .read_api()
-            .get_chain_identifier()
-            .await
-            .map_err(|e| ReplayEngineError::UnableToGetChainId { err: e.to_string() })?;
-        Ok(chain_id)
     }
 }
 
@@ -790,9 +756,5 @@ impl DataFetcher for NodeStateDumpFetcher {
         _reverse: bool,
     ) -> Result<Vec<SuiEvent>, ReplayEngineError> {
         unimplemented!("get_epoch_change_events for state dump is not implemented")
-    }
-
-    async fn get_chain_id(&self) -> Result<String, ReplayEngineError> {
-        unimplemented!("get_chain_id for state dump is not implemented")
     }
 }

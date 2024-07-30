@@ -3,15 +3,15 @@
 
 use async_graphql::{
     extensions::{
-        Extension, ExtensionContext, ExtensionFactory, NextExecute, NextParseQuery,
-        NextPrepareRequest, NextValidation,
+        Extension, ExtensionContext, ExtensionFactory, NextExecute, NextParseQuery, NextRequest,
+        NextValidation,
     },
     parser::types::{ExecutableDocument, OperationType, Selection},
-    PathSegment, Request, Response, ServerError, ServerResult, ValidationResult, Variables,
+    PathSegment, Response, ServerError, ServerResult, ValidationResult, Variables,
 };
-use std::{fmt::Write, net::SocketAddr, sync::Arc};
+use std::{fmt::Write, sync::Arc};
 use tokio::sync::Mutex;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 use uuid::Uuid;
 
 // TODO: mode in-depth logging to debug
@@ -41,41 +41,28 @@ pub struct Logger {
 impl ExtensionFactory for Logger {
     fn create(&self) -> Arc<dyn Extension> {
         Arc::new(LoggerExtension {
-            session_id: "".to_string().into(),
+            session_id: None.into(),
             config: self.config.clone(),
         })
     }
 }
 
 struct LoggerExtension {
-    session_id: Mutex<String>,
+    session_id: Mutex<Option<Uuid>>,
     config: LoggerConfig,
 }
 
 impl LoggerExtension {
-    async fn set_session_id(&self, ip: Option<SocketAddr>) {
-        let ip_component = ip.map(|ip| format!("{}-", ip)).unwrap_or_default();
-        let uuid_component = format!("{}", Uuid::new_v4());
-        *self.session_id.lock().await = format!("{}{}", ip_component, uuid_component);
-    }
-
-    async fn session_id(&self) -> String {
-        self.session_id.lock().await.clone()
+    async fn session_id(&self) -> Option<Uuid> {
+        *self.session_id.lock().await
     }
 }
 
 #[async_trait::async_trait]
 impl Extension for LoggerExtension {
-    /// Called at prepare request.
-    async fn prepare_request(
-        &self,
-        ctx: &ExtensionContext<'_>,
-        request: Request,
-        next: NextPrepareRequest<'_>,
-    ) -> ServerResult<Request> {
-        self.set_session_id(ctx.data_opt::<SocketAddr>().copied())
-            .await;
-        next.run(ctx, request).await
+    async fn request(&self, ctx: &ExtensionContext<'_>, next: NextRequest<'_>) -> Response {
+        *self.session_id.lock().await = Some(Uuid::new_v4());
+        next.run(ctx).await
     }
 
     async fn parse_query(
@@ -94,7 +81,7 @@ impl Extension for LoggerExtension {
         if !is_schema && self.config.log_request_query {
             info!(
                 target: "async-graphql",
-                "[Query] {}: {}", self.session_id().await, ctx.stringify_execute_doc(&document, variables)
+                "[Query] {}: {}", self.session_id().await.unwrap(), ctx.stringify_execute_doc(&document, variables)
             );
         }
         Ok(document)
@@ -111,7 +98,7 @@ impl Extension for LoggerExtension {
                 target: "async-graphql",
                 complexity = res.complexity,
                 depth = res.depth,
-                "[Validation] {}", self.session_id().await);
+                "[Validation] {}", self.session_id().await.unwrap());
         }
         Ok(res)
     }
@@ -153,18 +140,10 @@ impl Extension for LoggerExtension {
                 }
             }
         } else if self.config.log_response {
-            match operation_name {
-                Some("IntrospectionQuery") => {
-                    debug!(
-                        target: "async-graphql",
-                        "[Schema] {}: {}", self.session_id().await, resp.data
-                    );
-                }
-                _ => info!(
-                    target: "async-graphql",
-                    "[Response] {}: {}", self.session_id().await, resp.data
-                ),
-            }
+            info!(
+                target: "async-graphql",
+                "[Response] {}: {}", self.session_id().await.unwrap(), resp.data
+            );
         }
         resp
     }

@@ -13,45 +13,19 @@ use std::path::PathBuf;
     version
 )]
 pub enum Command {
-    GenerateConfig {
-        /// Path to output the YAML config, otherwise stdout.
-        #[clap(short, long)]
-        path: Option<PathBuf>,
-    },
     GenerateSchema {
-        /// Path to output GraphQL schema to, in SDL format.
         #[clap(short, long)]
         file: Option<PathBuf>,
-    },
-    GenerateExamples {
-        /// Path to output examples docs.
-        #[clap(short, long)]
-        file: Option<PathBuf>,
-    },
-    FromConfig {
-        /// Path to TOML file containing configuration for server.
-        #[clap(short, long)]
-        path: PathBuf,
     },
     StartServer {
-        /// DB URL for data fetching
-        #[clap(short, long)]
-        db_url: Option<String>,
+        /// URL of the RPC server for data fetching
+        #[clap(short, long, default_value = "https://fullnode.testnet.sui.io:443/")]
+        rpc_url: String,
         /// Port to bind the server to
-        #[clap(short, long)]
-        port: Option<u16>,
+        #[clap(short, long, default_value = "8000")]
+        port: u16,
         /// Host to bind the server to
-        #[clap(long)]
-        host: Option<String>,
-        /// Port to bind the prom server to
-        #[clap(long)]
-        prom_port: Option<u16>,
-        /// Host to bind the prom server to
-        #[clap(long)]
-        prom_host: Option<String>,
-
-        /// Path to TOML file containing configuration for service.
-        #[clap(short, long)]
-        config: Option<PathBuf>,
+        #[clap(long, default_value = "127.0.0.1")]
+        host: String,
     },
 }

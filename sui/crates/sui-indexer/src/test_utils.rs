@@ -26,7 +26,6 @@ pub async fn start_test_indexer(
                 .get()
                 .map_err(|e| anyhow!("Fail to get pg_connection_pool {e}"))?,
             true,
-            config.use_v2,
         )?;
     }
 

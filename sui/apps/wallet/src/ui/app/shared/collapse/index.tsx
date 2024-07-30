@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ChevronDown12, ChevronRight12 } from '@mysten/icons';
+
 import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
-import cn from 'clsx';
+import cn from 'classnames';
 import { useState, type ReactNode } from 'react';
 
 interface CollapsibleProps {
@@ -11,30 +12,15 @@ interface CollapsibleProps {
 	defaultOpen?: boolean;
 	children: ReactNode | ReactNode[];
 	shade?: 'lighter' | 'darker';
-	isOpen?: boolean;
-	onOpenChange?: (isOpen: boolean) => void;
 }
 
-export function Collapsible({
-	title,
-	children,
-	defaultOpen,
-	isOpen,
-	onOpenChange,
-	shade = 'lighter',
-}: CollapsibleProps) {
-	const [open, setOpen] = useState(isOpen ?? defaultOpen ?? false);
-
-	const handleOpenChange = (isOpen: boolean) => {
-		setOpen(isOpen);
-		onOpenChange?.(isOpen);
-	};
-
+export function Collapsible({ title, children, defaultOpen, shade = 'lighter' }: CollapsibleProps) {
+	const [open, setOpen] = useState(defaultOpen ?? false);
 	return (
 		<CollapsiblePrimitive.Root
 			className="flex flex-shrink-0 justify-start flex-col w-full gap-3"
-			open={isOpen ?? open}
-			onOpenChange={handleOpenChange}
+			open={open}
+			onOpenChange={setOpen}
 		>
 			<CollapsiblePrimitive.Trigger className="flex items-center gap-2 w-full bg-transparent border-none p-0 cursor-pointer group">
 				<div

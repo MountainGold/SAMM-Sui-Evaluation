@@ -511,8 +511,8 @@ async fn test_process_transaction_fault_success() {
 #[sim_test]
 async fn test_process_transaction_fault_fail() {
     // This test exercises the cases when there are 2 authorities faulty,
-    // and hence no quorum could be formed. This is tested on the
-    // process_transaction phase.
+    // and hence no quorum could be formed. This is tested on both the
+    // process_transaction phase and process_certificate phase.
     let fail_before_process_transaction_config = LocalAuthorityClientFaultConfig {
         fail_before_handle_transaction: true,
         ..Default::default()
@@ -527,11 +527,7 @@ async fn test_process_transaction_fault_fail() {
         )
         .await
     );
-}
 
-#[sim_test]
-async fn test_process_certificate_fault_fail() {
-    // Similar to test_process_transaction_fault_fail but tested on the process_certificate phase.
     let fail_before_process_certificate_config = LocalAuthorityClientFaultConfig {
         fail_before_handle_confirmation: true,
         ..Default::default()
@@ -2143,7 +2139,7 @@ async fn assert_resp_err<E, F>(
                 assert!(!conflicting_tx_digests.is_empty());
                 assert!(errors.iter().map(|e| &e.0).all(sui_err_checker));
             }
-            AggregatorProcessTransactionError::TxAlreadyFinalizedWithDifferentUserSignatures => (),
+
             AggregatorProcessTransactionError::FatalConflictingTransaction {
                 errors,
                 conflicting_tx_digests,

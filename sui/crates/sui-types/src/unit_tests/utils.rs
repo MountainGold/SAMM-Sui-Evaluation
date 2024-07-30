@@ -127,8 +127,9 @@ pub fn mock_certified_checkpoint<'a>(
     committee: Committee,
     seq_num: u64,
 ) -> CertifiedCheckpointSummary {
-    let contents =
-        CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::random()]);
+    let contents = CheckpointContents::new_with_causally_ordered_transactions(
+        [ExecutionDigests::random()].into_iter(),
+    );
 
     let summary = CheckpointSummary::new(
         committee.epoch,
@@ -154,23 +155,24 @@ pub fn mock_certified_checkpoint<'a>(
 
 mod zk_login {
     use fastcrypto_zkp::bn254::{utils::big_int_str_to_bytes, zk_login::ZkLoginInputs};
-    use shared_crypto::intent::PersonalMessage;
-
-    use crate::zk_login_util::get_zklogin_inputs;
 
     use super::*;
+
+    fn get_inputs() -> ZkLoginInputs {
+        thread_local! {
+            static ZKLOGIN_INPUTS: ZkLoginInputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"2639684184680217707167754014000719722348206659392422133035933088167295844621\",\"15411697389380103098050765723042580180772223011905582881833041447034179685161\",\"1\"],\"pi_b\":[[\"18356546416649273600365508068279984662879338153955858345242905260545040887165\",\"14180424108251071134157931909030745068063443512539428703047837797454965825626\"],[\"13156473667176810581893653079638435272252026941153836815590225135710650196382\",\"21239978751364084281206642892186667820382067271473352046319441969708281386102\"],[\"1\",\"0\"]],\"pi_c\":[\"10224668151896969767148853455746517578322339166888897843411999928700401320418\",\"10920763695594894441298491254988284677195769983974208707015444852382653532723\",\"1\"]},\"address_seed\":\"21483285397923302977910340636259412155696585453250993383687293995976400590480\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw\",\"index_mod_4\":2},{\"name\":\"aud\",\"value_base64\":\"yJhdWQiOiJyczFiaDA2NWk5eWE0eWR2aWZpeGw0a3NzMHVocHQiLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ\"}").unwrap().init().unwrap();
+        }
+        ZKLOGIN_INPUTS.with(|a| a.clone())
+    }
 
     pub fn get_zklogin_user_address() -> SuiAddress {
         thread_local! {
             static USER_ADDRESS: SuiAddress = {
-                // Derive user address manually: Blake2b_256 hash of [zklogin_flag || iss_bytes_length || iss_bytes || address seed in bytes])
+                // Derive user address manually: Blake2b_256 hash of [zklogin_flag || bcs bytes of AddressParams || address seed in bytes])
                 let mut hasher = DefaultHash::default();
                 hasher.update([SignatureScheme::ZkLoginAuthenticator.flag()]);
-                let inputs = get_zklogin_inputs();
-                let iss_bytes = inputs.get_iss().as_bytes();
-                hasher.update([iss_bytes.len() as u8]);
-                hasher.update(iss_bytes);
-                hasher.update(big_int_str_to_bytes(inputs.get_address_seed()).unwrap());
+                hasher.update(bcs::to_bytes(&get_inputs().get_address_params()).unwrap());
+                hasher.update(big_int_str_to_bytes(get_inputs().get_address_seed()));
                 SuiAddress::from_bytes(hasher.finalize().digest).unwrap()
             };
         }
@@ -181,58 +183,16 @@ mod zk_login {
         SuiKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])))
     }
 
-    fn get_inputs_with_bad_address_seed() -> ZkLoginInputs {
-        thread_local! {
-        static ZKLOGIN_INPUTS: ZkLoginInputs = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"17276311605393076686048412951904952585208929623427027497902331765285829154985\",\"2195957390349729412627479867125563520760023859523358729791332629632025124364\",\"1\"],\"b\":[[\"10285059021604767951039627893758482248204478992077021270802057708215366770814\",\"20086937595807139308592304218494658586282197458549968652049579308384943311509\"],[\"7481123765095657256931104563876569626157448050870256177668773471703520958615\",\"11912752790863530118410797223176516777328266521602785233083571774104055633375\"],[\"1\",\"0\"]],\"c\":[\"15742763887654796666500488588763616323599882100448686869458326409877111249163\",\"6112916537574993759490787691149241262893771114597679488354854987586060572876\",\"1\"]},\"issBase64Details\":{\"value\":\"wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw\",\"indexMod4\":2},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ\"}", "380704556853533152350240698167704405529973457670972223618755249929828551006").unwrap(); }
-        ZKLOGIN_INPUTS.with(|a| a.clone())
+    pub fn make_zklogin_tx() -> (SuiAddress, Transaction, GenericSignature) {
+        let data = make_transaction_data(get_zklogin_user_address());
+
+        sign_zklogin_tx(data)
     }
 
-    pub fn get_legacy_zklogin_user_address() -> SuiAddress {
-        thread_local! {
-            static USER_ADDRESS: SuiAddress = {
-                // Derive user address manually: Blake2b_256 hash of [zklogin_flag || iss_bytes_length || iss_bytes || address seed in bytes])
-                let mut hasher = DefaultHash::default();
-                hasher.update([SignatureScheme::ZkLoginAuthenticator.flag()]);
-                let inputs = get_inputs_with_bad_address_seed();
-                let iss_bytes = inputs.get_iss().as_bytes();
-                hasher.update([iss_bytes.len() as u8]);
-                hasher.update(iss_bytes);
-                let bytes = big_int_str_to_bytes(inputs.get_address_seed()).unwrap();
-                // The bytes from example address seed is 31 bytes, padded with 0 to 32 bytes.
-                let mut padded = Vec::new();
-                padded.extend(vec![0; 32 - bytes.len()]);
-                padded.extend(bytes);
-                hasher.update(padded);
-                SuiAddress::from_bytes(hasher.finalize().digest).unwrap()
-            };
-        }
-        USER_ADDRESS.with(|a| *a)
-    }
-
-    pub fn make_zklogin_tx(legacy: bool) -> (SuiAddress, Transaction, GenericSignature) {
-        let data = if legacy {
-            make_transaction_data(get_legacy_zklogin_user_address())
-        } else {
-            make_transaction_data(get_zklogin_user_address())
-        };
-        sign_zklogin_tx(data, legacy)
-    }
-
-    pub fn sign_zklogin_personal_msg(data: PersonalMessage) -> (SuiAddress, GenericSignature) {
-        let inputs = get_zklogin_inputs();
-        let msg = IntentMessage::new(Intent::personal_message(), data);
-        let s = Signature::new_secure(&msg, &get_zklogin_user_key());
-        let authenticator =
-            GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(inputs, 10, s));
-        let address = get_zklogin_user_address();
-        (address, authenticator)
-    }
-
-    pub fn sign_zklogin_tx(
-        data: TransactionData,
-        legacy: bool,
-    ) -> (SuiAddress, Transaction, GenericSignature) {
+    pub fn sign_zklogin_tx(data: TransactionData) -> (SuiAddress, Transaction, GenericSignature) {
         // Sign the user transaction with the user's ephemeral key.
+        //let tx = make_transaction(user_address, &user_key, Intent::sui_transaction());
+
         let tx = Transaction::from_data_and_signer(
             data,
             Intent::sui_transaction(),
@@ -244,14 +204,9 @@ mod zk_login {
             _ => panic!("Expected a signature"),
         };
 
-        let inputs = if legacy {
-            get_inputs_with_bad_address_seed()
-        } else {
-            get_zklogin_inputs()
-        };
         // Construct the authenticator with all user submitted components.
         let authenticator = GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(
-            inputs,
+            get_inputs(),
             10,
             s.clone(),
         ));
@@ -261,12 +216,8 @@ mod zk_login {
             Intent::sui_transaction(),
             vec![authenticator.clone()],
         ));
-        let addr = if legacy {
-            get_legacy_zklogin_user_address()
-        } else {
-            get_zklogin_user_address()
-        };
-        (addr, tx, authenticator)
+
+        (get_zklogin_user_address(), tx, authenticator)
     }
 }
 

@@ -3,9 +3,10 @@
 
 import { Image32, LockLocked16, MediaPlay16 } from '@mysten/icons';
 import { cva } from 'class-variance-authority';
-import type { VariantProps } from 'class-variance-authority';
-import cl from 'clsx';
+import cl from 'classnames';
 import { useState } from 'react';
+
+import type { VariantProps } from 'class-variance-authority';
 
 const nftImageStyles = cva('overflow-hidden bg-gray-40 relative', {
 	variants: {

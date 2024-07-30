@@ -38,11 +38,11 @@ use tracing::info;
 use types::{
     Batch, BatchDigest, BatchV1, Certificate, CertificateAPI, CertificateDigest,
     FetchBatchesRequest, FetchBatchesResponse, FetchCertificatesRequest, FetchCertificatesResponse,
-    Header, HeaderAPI, HeaderV2Builder, PrimaryToPrimary, PrimaryToPrimaryServer, PrimaryToWorker,
+    Header, HeaderAPI, HeaderV1Builder, PrimaryToPrimary, PrimaryToPrimaryServer, PrimaryToWorker,
     PrimaryToWorkerServer, RequestBatchesRequest, RequestBatchesResponse, RequestVoteRequest,
-    RequestVoteResponse, Round, SendCertificateRequest, SendCertificateResponse,
-    SendRandomnessPartialSignaturesRequest, TimestampMs, Transaction, Vote, VoteAPI,
-    WorkerBatchMessage, WorkerSynchronizeMessage, WorkerToWorker, WorkerToWorkerServer,
+    RequestVoteResponse, Round, SendCertificateRequest, SendCertificateResponse, TimestampMs,
+    Transaction, Vote, VoteAPI, WorkerBatchMessage, WorkerSynchronizeMessage, WorkerToWorker,
+    WorkerToWorkerServer,
 };
 
 pub mod cluster;
@@ -243,13 +243,6 @@ impl PrimaryToPrimary for PrimaryToPrimaryMockServer {
         &self,
         _request: anemo::Request<RequestVoteRequest>,
     ) -> Result<anemo::Response<RequestVoteResponse>, anemo::rpc::Status> {
-        unimplemented!()
-    }
-
-    async fn send_randomness_partial_signatures(
-        &self,
-        _request: anemo::Request<SendRandomnessPartialSignaturesRequest>,
-    ) -> Result<anemo::Response<()>, anemo::rpc::Status> {
         unimplemented!()
     }
 
@@ -796,7 +789,7 @@ pub fn mock_certificate_with_rand<R: RngCore + ?Sized>(
     parents: BTreeSet<CertificateDigest>,
     rand: &mut R,
 ) -> (CertificateDigest, Certificate) {
-    let header_builder = HeaderV2Builder::default();
+    let header_builder = HeaderV1Builder::default();
     let header = header_builder
         .author(origin)
         .round(round)
@@ -805,9 +798,7 @@ pub fn mock_certificate_with_rand<R: RngCore + ?Sized>(
         .payload(fixture_payload_with_rand(1, rand, protocol_config))
         .build()
         .unwrap();
-    let certificate =
-        Certificate::new_unsigned(protocol_config, committee, Header::V2(header), Vec::new())
-            .unwrap();
+    let certificate = Certificate::new_unsigned(committee, Header::V1(header), Vec::new()).unwrap();
     (certificate.digest(), certificate)
 }
 
@@ -833,7 +824,7 @@ pub fn mock_certificate_with_epoch(
     epoch: Epoch,
     parents: BTreeSet<CertificateDigest>,
 ) -> (CertificateDigest, Certificate) {
-    let header_builder = HeaderV2Builder::default();
+    let header_builder = HeaderV1Builder::default();
     let header = header_builder
         .author(origin)
         .round(round)
@@ -842,9 +833,7 @@ pub fn mock_certificate_with_epoch(
         .payload(fixture_payload(1, protocol_config))
         .build()
         .unwrap();
-    let certificate =
-        Certificate::new_unsigned(protocol_config, committee, Header::V2(header), Vec::new())
-            .unwrap();
+    let certificate = Certificate::new_unsigned(committee, Header::V1(header), Vec::new()).unwrap();
     (certificate.digest(), certificate)
 }
 
@@ -857,7 +846,7 @@ pub fn mock_signed_certificate(
     committee: &Committee,
     protocol_config: &ProtocolConfig,
 ) -> (CertificateDigest, Certificate) {
-    let header_builder = HeaderV2Builder::default()
+    let header_builder = HeaderV1Builder::default()
         .author(origin)
         .payload(fixture_payload(1, protocol_config))
         .round(round)
@@ -866,21 +855,15 @@ pub fn mock_signed_certificate(
 
     let header = header_builder.build().unwrap();
 
-    let cert = Certificate::new_unsigned(
-        protocol_config,
-        committee,
-        Header::V2(header.clone()),
-        Vec::new(),
-    )
-    .unwrap();
+    let cert =
+        Certificate::new_unsigned(committee, Header::V1(header.clone()), Vec::new()).unwrap();
 
     let mut votes = Vec::new();
     for (name, signer) in signers {
         let sig = Signature::new_secure(&to_intent_message(cert.header().digest()), signer);
         votes.push((*name, sig))
     }
-    let cert =
-        Certificate::new_unverified(protocol_config, committee, Header::V2(header), votes).unwrap();
+    let cert = Certificate::new_unverified(committee, Header::V1(header), votes).unwrap();
     (cert.digest(), cert)
 }
 
@@ -1030,10 +1013,6 @@ pub struct CommitteeFixture {
 }
 
 impl CommitteeFixture {
-    pub fn authority(&self, index: usize) -> &AuthorityFixture {
-        &self.authorities[index]
-    }
-
     pub fn authorities(&self) -> impl Iterator<Item = &AuthorityFixture> {
         self.authorities.iter()
     }
@@ -1059,27 +1038,24 @@ impl CommitteeFixture {
 
     // pub fn header(&self, author: PublicKey) -> Header {
     // Currently sign with the last authority
-    pub fn header(&self, protocol_config: &ProtocolConfig) -> Header {
-        self.authorities
-            .last()
-            .unwrap()
-            .header(protocol_config, &self.committee())
+    pub fn header(&self) -> Header {
+        self.authorities.last().unwrap().header(&self.committee())
     }
 
-    pub fn headers(&self, protocol_config: &ProtocolConfig) -> Vec<Header> {
+    pub fn headers(&self) -> Vec<Header> {
         let committee = self.committee();
 
         self.authorities
             .iter()
-            .map(|a| a.header_with_round(protocol_config, &committee, 1))
+            .map(|a| a.header_with_round(&committee, 1))
             .collect()
     }
 
-    pub fn headers_next_round(&self, protocol_config: &ProtocolConfig) -> Vec<Header> {
+    pub fn headers_next_round(&self) -> Vec<Header> {
         let committee = self.committee();
         self.authorities
             .iter()
-            .map(|a| a.header_with_round(protocol_config, &committee, 2))
+            .map(|a| a.header_with_round(&committee, 2))
             .collect()
     }
 
@@ -1094,7 +1070,7 @@ impl CommitteeFixture {
             .authorities
             .iter()
             .map(|a| {
-                let builder = types::HeaderV2Builder::default();
+                let builder = types::HeaderV1Builder::default();
                 let header = builder
                     .author(a.id())
                     .round(round)
@@ -1103,7 +1079,7 @@ impl CommitteeFixture {
                     .with_payload_batch(fixture_batch_with_transactions(10, protocol_config), 0, 0)
                     .build()
                     .unwrap();
-                Header::V2(header)
+                Header::V1(header)
             })
             .collect();
 
@@ -1124,14 +1100,14 @@ impl CommitteeFixture {
             .collect()
     }
 
-    pub fn certificate(&self, protocol_config: &ProtocolConfig, header: &Header) -> Certificate {
+    pub fn certificate(&self, header: &Header) -> Certificate {
         let committee = self.committee();
         let votes: Vec<_> = self
             .votes(header)
             .into_iter()
             .map(|x| (x.author(), x.signature().clone()))
             .collect();
-        Certificate::new_unverified(protocol_config, &committee, header.clone(), votes).unwrap()
+        Certificate::new_unverified(&committee, header.clone(), votes).unwrap()
     }
 }
 
@@ -1201,41 +1177,32 @@ impl AuthorityFixture {
         )
     }
 
-    pub fn header(&self, protocol_config: &ProtocolConfig, committee: &Committee) -> Header {
+    pub fn header(&self, committee: &Committee) -> Header {
         let header = self
-            .header_builder(protocol_config, committee)
+            .header_builder(committee)
             .payload(Default::default())
             .build()
             .unwrap();
-        Header::V2(header)
+        Header::V1(header)
     }
 
-    pub fn header_with_round(
-        &self,
-        protocol_config: &ProtocolConfig,
-        committee: &Committee,
-        round: Round,
-    ) -> Header {
+    pub fn header_with_round(&self, committee: &Committee, round: Round) -> Header {
         let header = self
-            .header_builder(protocol_config, committee)
+            .header_builder(committee)
             .payload(Default::default())
             .round(round)
             .build()
             .unwrap();
-        Header::V2(header)
+        Header::V1(header)
     }
 
-    pub fn header_builder(
-        &self,
-        protocol_config: &ProtocolConfig,
-        committee: &Committee,
-    ) -> types::HeaderV2Builder {
-        types::HeaderV2Builder::default()
+    pub fn header_builder(&self, committee: &Committee) -> types::HeaderV1Builder {
+        types::HeaderV1Builder::default()
             .author(self.id())
             .round(1)
             .epoch(committee.epoch())
             .parents(
-                Certificate::genesis(protocol_config, committee)
+                Certificate::genesis(committee)
                     .iter()
                     .map(|x| x.digest())
                     .collect(),

@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { filter, fromEventPattern, map, share, take, takeUntil, tap } from 'rxjs';
-import type { Observable } from 'rxjs';
 import Browser from 'webextension-polyfill';
-import type { Runtime } from 'webextension-polyfill';
 
-import type { Message } from './messages';
 import { isErrorPayload } from './messages/payloads';
+
 import type { PortChannelName } from './PortChannelName';
+import type { Message } from './messages';
+import type { Observable } from 'rxjs';
+import type { Runtime } from 'webextension-polyfill';
 
 export class PortStream {
 	private _messagesStream: Observable<Message>;

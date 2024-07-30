@@ -1,20 +1,38 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIsWalletDefiEnabled } from '_app/hooks/useIsWalletDefiEnabled';
+import { useFeature } from '@growthbook/growthbook-react';
+import { useAppsBackend, useResolveSuiNSName } from '@mysten/core';
+import { useAllBalances, useBalance } from '@mysten/dapp-kit';
+import {
+	Info12,
+	WalletActionBuy24,
+	WalletActionSend24,
+	Swap16,
+	Unpin16,
+	Pin16,
+} from '@mysten/icons';
+
+import { type CoinBalance as CoinBalanceType } from '@mysten/sui.js/client';
+import { Coin } from '@mysten/sui.js/framework';
+import { SUI_TYPE_ARG, formatAddress } from '@mysten/sui.js/utils';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+
+import { PortfolioName } from './PortfolioName';
+import { TokenIconLink } from './TokenIconLink';
+import { TokenLink } from './TokenLink';
+import { TokenList } from './TokenList';
+import SvgSuiTokensStack from './TokensStackIcon';
+import { CoinBalance } from './coin-balance';
+import Interstitial, { type InterstitialConfig } from '../interstitial';
+import { useOnrampProviders } from '../onramp/useOnrampProviders';
 import { LargeButton } from '_app/shared/LargeButton';
 import { Text } from '_app/shared/text';
-import { ButtonOrLink } from '_app/shared/utils/ButtonOrLink';
 import Alert from '_components/alert';
-import { CoinIcon } from '_components/coin-icon';
 import Loading from '_components/loading';
 import { filterAndSortTokenBalances } from '_helpers';
-import {
-	useAllowedSwapCoinsList,
-	useAppSelector,
-	useCoinsReFetchingConfig,
-	useSortedCoinsByCategories,
-} from '_hooks';
+import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import { API_ENV } from '_src/shared/api-env';
 import { FEATURES } from '_src/shared/experimentation/features';
@@ -22,26 +40,9 @@ import { AccountsList } from '_src/ui/app/components/accounts/AccountsList';
 import { UnlockAccountButton } from '_src/ui/app/components/accounts/UnlockAccountButton';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { usePinnedCoinTypes } from '_src/ui/app/hooks/usePinnedCoinTypes';
-import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
+import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
 import PageTitle from '_src/ui/app/shared/PageTitle';
-import { useFeature } from '@growthbook/growthbook-react';
-import { useAppsBackend, useCoinMetadata, useFormatCoin, useResolveSuiNSName } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { Info12, Pin16, Unpin16 } from '@mysten/icons';
-import { type CoinBalance as CoinBalanceType } from '@mysten/sui.js/client';
-import { formatAddress, parseStructTag, SUI_TYPE_ARG } from '@mysten/sui.js/utils';
-import { useQuery } from '@tanstack/react-query';
-import clsx from 'clsx';
-import { useEffect, useState, type ReactNode } from 'react';
-
-import Interstitial, { type InterstitialConfig } from '../interstitial';
-import { useOnrampProviders } from '../onramp/useOnrampProviders';
-import { CoinBalance } from './coin-balance';
-import { PortfolioName } from './PortfolioName';
-import { TokenIconLink } from './TokenIconLink';
-import { TokenLink } from './TokenLink';
-import { TokenList } from './TokenList';
-import SvgSuiTokensStack from './TokensStackIcon';
+import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 
 type TokenDetailsProps = {
 	coinType?: string;
@@ -64,127 +65,7 @@ function PinButton({ unpin, onClick }: { unpin?: boolean; onClick: () => void })
 	);
 }
 
-function TokenRowButton({
-	coinBalance,
-	children,
-	to,
-	onClick,
-}: {
-	coinBalance: CoinBalanceType;
-	children: ReactNode;
-	to: string;
-	onClick?: () => void;
-}) {
-	return (
-		<ButtonOrLink
-			to={to}
-			key={coinBalance.coinType}
-			onClick={onClick}
-			className="no-underline text-subtitle font-medium text-steel hover:font-semibold hover:text-hero"
-		>
-			{children}
-		</ButtonOrLink>
-	);
-}
-
-export function TokenRow({
-	coinBalance,
-	renderActions,
-	onClick,
-}: {
-	coinBalance: CoinBalanceType;
-	renderActions?: boolean;
-	onClick?: () => void;
-}) {
-	const coinType = coinBalance.coinType;
-	const balance = BigInt(coinBalance.totalBalance);
-	const [formatted, symbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
-	const Tag = onClick ? 'button' : 'div';
-	const params = new URLSearchParams({
-		type: coinBalance.coinType,
-	});
-	const allowedSwapCoinsList = useAllowedSwapCoinsList();
-
-	const isRenderSwapButton = allowedSwapCoinsList.includes(coinType);
-
-	return (
-		<Tag
-			className={clsx(
-				'group flex py-3 pl-1.5 pr-2 rounded hover:bg-sui/10 items-center bg-transparent border-transparent',
-				onClick && 'hover:cursor-pointer',
-			)}
-			onClick={onClick}
-		>
-			<div className="flex gap-2.5">
-				<CoinIcon coinType={coinType} size="md" />
-				<div className="flex flex-col gap-1 items-start">
-					<Text variant="body" color="gray-90" weight="semibold" truncate>
-						{coinMeta?.name || symbol}
-					</Text>
-
-					{renderActions && (
-						<div className="group-hover:hidden">
-							<Text variant="subtitle" color="steel-dark" weight="medium">
-								{symbol}
-							</Text>
-						</div>
-					)}
-
-					{renderActions ? (
-						<div className="group-hover:flex hidden gap-2.5 items-center">
-							<TokenRowButton
-								coinBalance={coinBalance}
-								to={`/send?${params.toString()}`}
-								onClick={() =>
-									ampli.selectedCoin({
-										coinType: coinBalance.coinType,
-										totalBalance: Number(formatted),
-									})
-								}
-							>
-								Send
-							</TokenRowButton>
-							{isRenderSwapButton && (
-								<TokenRowButton
-									coinBalance={coinBalance}
-									to={`/swap?${params.toString()}`}
-									onClick={() => {
-										ampli.clickedSwapCoin({
-											coinType: coinBalance.coinType,
-											totalBalance: Number(formatted),
-											sourceFlow: 'TokenRow',
-										});
-									}}
-								>
-									Swap
-								</TokenRowButton>
-							)}
-						</div>
-					) : (
-						<div className="flex gap-1 items-center">
-							<Text variant="subtitleSmall" weight="semibold" color="gray-90">
-								{symbol}
-							</Text>
-							<Text variant="subtitleSmall" weight="medium" color="steel-dark">
-								{formatAddress(coinType)}
-							</Text>
-						</div>
-					)}
-				</div>
-			</div>
-
-			<div className="ml-auto flex flex-col items-end gap-1.5">
-				{balance > 0n && (
-					<Text variant="body" color="gray-90" weight="medium">
-						{formatted} {symbol}
-					</Text>
-				)}
-			</div>
-		</Tag>
-	);
-}
-
-export function MyTokens({
+function MyTokens({
 	coinBalances,
 	isLoading,
 	isFetched,
@@ -193,12 +74,32 @@ export function MyTokens({
 	isLoading: boolean;
 	isFetched: boolean;
 }) {
-	const isDefiWalletEnabled = useIsWalletDefiEnabled();
 	const apiEnv = useAppSelector(({ app }) => app.apiEnv);
 
-	const [_, { pinCoinType, unpinCoinType }] = usePinnedCoinTypes();
+	const recognizedPackages = useRecognizedPackages();
+	const [pinnedCoinTypes, { pinCoinType, unpinCoinType }] = usePinnedCoinTypes();
 
-	const { recognized, pinned, unrecognized } = useSortedCoinsByCategories(coinBalances);
+	const { recognized, pinned, unrecognized } = useMemo(
+		() =>
+			coinBalances?.reduce(
+				(acc, coinBalance) => {
+					if (recognizedPackages.includes(coinBalance.coinType.split('::')[0])) {
+						acc.recognized.push(coinBalance);
+					} else if (pinnedCoinTypes.includes(coinBalance.coinType)) {
+						acc.pinned.push(coinBalance);
+					} else {
+						acc.unrecognized.push(coinBalance);
+					}
+					return acc;
+				},
+				{
+					recognized: [] as CoinBalanceType[],
+					pinned: [] as CoinBalanceType[],
+					unrecognized: [] as CoinBalanceType[],
+				},
+			) ?? { recognized: [], pinned: [], unrecognized: [] },
+		[coinBalances, recognizedPackages, pinnedCoinTypes],
+	);
 
 	// Avoid perpetual loading state when fetching and retry keeps failing; add isFetched check.
 	const isFirstTimeLoading = isLoading && !isFetched;
@@ -207,13 +108,9 @@ export function MyTokens({
 		<Loading loading={isFirstTimeLoading}>
 			{recognized.length > 0 && (
 				<TokenList title="My Coins" defaultOpen>
-					{recognized.map((coinBalance) =>
-						isDefiWalletEnabled ? (
-							<TokenRow renderActions key={coinBalance.coinType} coinBalance={coinBalance} />
-						) : (
-							<TokenLink key={coinBalance.coinType} coinBalance={coinBalance} />
-						),
-					)}
+					{recognized.map((coinBalance) => (
+						<TokenLink key={coinBalance.coinType} coinBalance={coinBalance} />
+					))}
 				</TokenList>
 			)}
 
@@ -250,7 +147,6 @@ export function MyTokens({
 						<TokenLink
 							key={coinBalance.coinType}
 							coinBalance={coinBalance}
-							subtitle="Send"
 							centerAction={
 								<PinButton
 									onClick={() => {
@@ -267,25 +163,7 @@ export function MyTokens({
 	);
 }
 
-function getMostNestedName(parsed: ReturnType<typeof parseStructTag>) {
-	if (parsed.typeParams.length === 0) {
-		return parsed.name;
-	}
-
-	if (typeof parsed.typeParams[0] === 'string') {
-		return parsed.typeParams[0];
-	}
-
-	return getMostNestedName(parsed.typeParams[0]);
-}
-
-function getFallbackSymbol(coinType: string) {
-	const parsed = parseStructTag(coinType);
-	return getMostNestedName(parsed);
-}
-
 function TokenDetails({ coinType }: TokenDetailsProps) {
-	const isDefiWalletEnabled = useIsWalletDefiEnabled();
 	const [interstitialDismissed, setInterstitialDismissed] = useState<boolean>(false);
 	const activeCoinType = coinType || SUI_TYPE_ARG;
 	const activeAccount = useActiveAccount();
@@ -295,14 +173,12 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 	const {
 		data: coinBalance,
 		isError,
-		isPending,
+		isLoading,
 		isFetched,
-	} = useSuiClientQuery(
-		'getBalance',
+	} = useBalance(
 		{ coinType: activeCoinType, owner: activeAccountAddress! },
 		{ enabled: !!activeAccountAddress, refetchInterval, staleTime },
 	);
-
 	const { apiEnv } = useAppSelector((state) => state.app);
 	const { request } = useAppsBackend();
 	const { data } = useQuery({
@@ -319,10 +195,9 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 
 	const {
 		data: coinBalances,
-		isPending: coinBalancesLoading,
+		isLoading: coinBalancesLoading,
 		isFetched: coinBalancesFetched,
-	} = useSuiClientQuery(
-		'getAllBalances',
+	} = useAllBalances(
 		{ owner: activeAccountAddress! },
 		{
 			enabled: !!activeAccountAddress,
@@ -339,13 +214,10 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 	const { providers } = useOnrampProviders();
 
 	const tokenBalance = BigInt(coinBalance?.totalBalance ?? 0);
-	const [formatted] = useFormatCoin(tokenBalance, activeCoinType);
 
-	const { data: coinMetadata } = useCoinMetadata(activeCoinType);
-	const coinSymbol = coinMetadata ? coinMetadata.symbol : getFallbackSymbol(activeCoinType);
-
+	const coinSymbol = useMemo(() => Coin.getCoinSymbol(activeCoinType), [activeCoinType]);
 	// Avoid perpetual loading state when fetching and retry keeps failing add isFetched check
-	const isFirstTimeLoading = isPending && !isFetched;
+	const isFirstTimeLoading = isLoading && !isFetched;
 
 	useEffect(() => {
 		const dismissed =
@@ -354,11 +226,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 		setInterstitialDismissed(dismissed === 'true');
 	}, [walletInterstitialConfig?.dismissKey]);
 
-	if (
-		navigator.userAgent !== 'Playwright' &&
-		walletInterstitialConfig?.enabled &&
-		!interstitialDismissed
-	) {
+	if (walletInterstitialConfig?.enabled && !interstitialDismissed) {
 		return (
 			<Interstitial
 				{...walletInterstitialConfig}
@@ -369,7 +237,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 		);
 	}
 	const accountHasSui = coinBalances?.some(({ coinType }) => coinType === SUI_TYPE_ARG);
-
 	if (!activeAccountAddress) {
 		return null;
 	}
@@ -391,7 +258,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 				{coinType && <PageTitle title={coinSymbol} back="/tokens" />}
 
 				<div
-					className="flex flex-col h-full flex-1 flex-grow items-center gap-8"
+					className="flex flex-col h-full flex-1 flex-grow items-center overflow-y-auto gap-8"
 					data-testid="coin-page"
 				>
 					<AccountsList />
@@ -403,22 +270,17 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 							<>
 								<div
 									data-testid="coin-balance"
-									className={clsx(
-										'rounded-2xl py-5 px-4 flex flex-col w-full gap-3 items-center mt-4',
-										isDefiWalletEnabled ? 'bg-gradients-graph-cards' : 'bg-hero/5',
-									)}
+									className="bg-sui/10 rounded-2xl py-5 px-4 flex flex-col w-full gap-3 items-center mt-4"
 								>
 									{accountHasSui ? (
-										<div className="flex flex-col gap-1 items-center">
-											<CoinBalance amount={tokenBalance} type={activeCoinType} />
-										</div>
+										<CoinBalance amount={BigInt(tokenBalance)} type={activeCoinType} />
 									) : (
 										<div className="flex flex-col gap-5">
 											<div className="flex flex-col flex-nowrap justify-center items-center text-center px-2.5">
 												<SvgSuiTokensStack className="h-14 w-14 text-steel" />
 												<div className="flex flex-col gap-2 justify-center">
 													<Text variant="pBodySmall" color="gray-80" weight="normal">
-														To send transactions on the Sui network, you need SUI in your wallet.
+														To conduct transactions on the Sui network, you need SUI in your wallet.
 													</Text>
 												</div>
 											</div>
@@ -437,6 +299,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 											center
 											to="/onramp"
 											disabled={(coinType && coinType !== SUI_TYPE_ARG) || !providers?.length}
+											top={<WalletActionBuy24 />}
 										>
 											Buy
 										</LargeButton>
@@ -452,32 +315,12 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 													: ''
 											}`}
 											disabled={!tokenBalance}
+											top={<WalletActionSend24 />}
 										>
 											Send
 										</LargeButton>
 
-										<LargeButton
-											center
-											disabled={!isDefiWalletEnabled || !tokenBalance}
-											to={`/swap${
-												coinBalance?.coinType
-													? `?${new URLSearchParams({
-															type: coinBalance.coinType,
-													  }).toString()}`
-													: ''
-											}`}
-											onClick={() => {
-												if (!coinBalance) {
-													return;
-												}
-
-												ampli.clickedSwapCoin({
-													coinType: coinBalance.coinType,
-													totalBalance: Number(formatted),
-													sourceFlow: 'LargeButton-TokenDetails',
-												});
-											}}
-										>
+										<LargeButton center to="/" disabled top={<Swap16 />}>
 											Swap
 										</LargeButton>
 									</div>

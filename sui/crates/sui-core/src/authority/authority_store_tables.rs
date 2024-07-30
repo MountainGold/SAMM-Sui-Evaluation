@@ -10,7 +10,7 @@ use sui_types::accumulator::Accumulator;
 use sui_types::base_types::SequenceNumber;
 use sui_types::digests::TransactionEventsDigest;
 use sui_types::effects::TransactionEffects;
-use sui_types::storage::MarkerValue;
+use sui_types::storage::MarkerKind;
 use typed_store::metrics::SamplingInterval;
 use typed_store::rocks::util::{empty_compaction_filter, reference_count_merge_operator};
 use typed_store::rocks::{
@@ -120,12 +120,12 @@ pub struct AuthorityPerpetualTables {
     /// This number is the result of storage_fund_balance - sum(storage_rebate).
     pub(crate) expected_storage_fund_imbalance: DBMap<(), i64>,
 
-    /// Table that stores the set of received objects and deleted objects and the version at
+    /// Table that stores the set of received objects and deleted shared objects and the version at
     /// which they were received. This is used to prevent possible race conditions around receiving
     /// objects (since they are not locked by the transaction manager) and for tracking shared
     /// objects that have been deleted. This table is meant to be pruned per-epoch, and all
     /// previous epochs other than the current epoch may be pruned safely.
-    pub(crate) object_per_epoch_marker_table: DBMap<(EpochId, ObjectKey), MarkerValue>,
+    pub(crate) object_per_epoch_marker_table: DBMap<(EpochId, ObjectKey, MarkerKind), ()>,
 }
 
 impl AuthorityPerpetualTables {
@@ -154,12 +154,10 @@ impl AuthorityPerpetualTables {
         object_id: ObjectID,
         version: SequenceNumber,
     ) -> Option<Object> {
-        let Ok(iter) = self
-            .objects
+        let Ok(iter) = self.objects
             .range_iter(ObjectKey::min_for_id(&object_id)..=ObjectKey::max_for_id(&object_id))
-            .skip_prior_to(&ObjectKey(object_id, version))
-        else {
-            return None;
+            .skip_prior_to(&ObjectKey(object_id, version))else {
+            return None
         };
         iter.reverse()
             .next()
@@ -188,9 +186,7 @@ impl AuthorityPerpetualTables {
         object_key: &ObjectKey,
         store_object: StoreObjectWrapper,
     ) -> Result<Option<Object>, SuiError> {
-        let StoreObject::Value(store_object) = store_object.migrate().into_inner() else {
-            return Ok(None);
-        };
+        let StoreObject::Value(store_object) = store_object.migrate().into_inner() else {return Ok(None)};
         Ok(Some(self.construct_object(object_key, store_object)?))
     }
 
@@ -396,7 +392,7 @@ impl AuthorityPerpetualTables {
         wb: &mut DBBatch,
         object: &ObjectKey,
     ) -> SuiResult<ObjectRef> {
-        wb.schedule_delete_range(
+        wb.delete_range(
             &self.owned_object_transaction_locks,
             &(object.0, object.1, ObjectDigest::MIN),
             &(object.0, object.1, ObjectDigest::MAX),
@@ -460,13 +456,6 @@ impl AuthorityPerpetualTables {
             .flush()
             .map_err(SuiError::StorageError)?;
         Ok(())
-    }
-
-    pub fn get_root_state_hash(
-        &self,
-        epoch: EpochId,
-    ) -> SuiResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
-        Ok(self.root_state_hash_by_epoch.get(&epoch)?)
     }
 
     pub fn insert_root_state_hash(

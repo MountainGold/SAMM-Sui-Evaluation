@@ -16,8 +16,6 @@ use shared_crypto::intent::Intent;
 use std::hash::Hash;
 use std::sync::Arc;
 use sui_types::digests::SenderSignedDataDigest;
-use sui_types::digests::ZKLoginInputsDigest;
-use sui_types::signature::GenericSignature;
 use sui_types::transaction::SenderSignedData;
 use sui_types::{
     committee::Committee,
@@ -35,7 +33,6 @@ use tokio::{
     sync::oneshot,
     time::{timeout, Duration},
 };
-use tracing::debug;
 // Maximum amount of time we wait for a batch to fill up before verifying a partial batch.
 const BATCH_TIMEOUT_MS: Duration = Duration::from_millis(10);
 
@@ -94,7 +91,6 @@ pub struct SignatureVerifier {
     committee: Arc<Committee>,
     certificate_cache: VerifiedDigestCache<CertificateDigest>,
     signed_data_cache: VerifiedDigestCache<SenderSignedDataDigest>,
-    zklogin_inputs_cache: VerifiedDigestCache<ZKLoginInputsDigest>,
 
     /// Map from JwkId (iss, kid) to the fetched JWK for that key.
     /// We use an immutable data structure because verification of ZKLogins may be slow, so we
@@ -117,7 +113,6 @@ struct ZkLoginParams {
     pub supported_providers: Vec<OIDCProvider>,
     /// The environment (prod/test) the code runs in. It decides which verifying key to use in fastcrypto.
     pub env: ZkLoginEnv,
-    pub verify_legacy_zklogin_address: bool,
 }
 
 impl SignatureVerifier {
@@ -127,7 +122,6 @@ impl SignatureVerifier {
         metrics: Arc<SignatureVerifierMetrics>,
         supported_providers: Vec<OIDCProvider>,
         env: ZkLoginEnv,
-        verify_legacy_zklogin_address: bool,
     ) -> Self {
         Self {
             committee,
@@ -139,17 +133,12 @@ impl SignatureVerifier {
                 metrics.signed_data_cache_hits.clone(),
                 metrics.signed_data_cache_evictions.clone(),
             ),
-            zklogin_inputs_cache: VerifiedDigestCache::new(
-                metrics.zklogin_inputs_cache_hits.clone(),
-                metrics.zklogin_inputs_cache_evictions.clone(),
-            ),
             jwks: Default::default(),
             queue: Mutex::new(CertBuffer::new(batch_size)),
             metrics,
             zk_login_params: ZkLoginParams {
                 supported_providers,
                 env,
-                verify_legacy_zklogin_address,
             },
         }
     }
@@ -159,7 +148,6 @@ impl SignatureVerifier {
         metrics: Arc<SignatureVerifierMetrics>,
         supported_providers: Vec<OIDCProvider>,
         zklogin_env: ZkLoginEnv,
-        verify_legacy_zklogin_address: bool,
     ) -> Self {
         Self::new_with_batch_size(
             committee,
@@ -167,7 +155,6 @@ impl SignatureVerifier {
             metrics,
             supported_providers,
             zklogin_env,
-            verify_legacy_zklogin_address,
         )
     }
 
@@ -317,19 +304,11 @@ impl SignatureVerifier {
         });
     }
 
-    /// Insert a JWK into the verifier state. Pre-existing entries for a given JwkId will not be
-    /// overwritten.
+    /// Insert a JWK into the verifier state based on provider. Returns true if the kid of the JWK has not already
+    /// been inserted.
     pub(crate) fn insert_jwk(&self, jwk_id: &JwkId, jwk: &JWK) {
         let mut jwks = self.jwks.write();
-        match jwks.entry(jwk_id.clone()) {
-            im::hashmap::Entry::Occupied(_) => {
-                debug!("JWK with kid {:?} already exists", jwk_id);
-            }
-            im::hashmap::Entry::Vacant(entry) => {
-                debug!("inserting JWK with kid: {:?}", jwk_id);
-                entry.insert(jwk.clone());
-            }
-        }
+        jwks.insert(jwk_id.clone(), jwk.clone());
     }
 
     pub fn has_jwk(&self, jwk_id: &JwkId, jwk: &JWK) -> bool {
@@ -337,41 +316,18 @@ impl SignatureVerifier {
         jwks.get(jwk_id) == Some(jwk)
     }
 
-    pub fn get_jwks(&self) -> ImHashMap<JwkId, JWK> {
-        self.jwks.read().clone()
-    }
-
     pub fn verify_tx(&self, signed_tx: &SenderSignedData) -> SuiResult {
-        self.signed_data_cache.is_verified(
-            signed_tx.full_message_digest(),
-            || {
+        self.signed_data_cache
+            .is_verified(signed_tx.full_message_digest(), || {
                 signed_tx.verify_epoch(self.committee.epoch())?;
                 let jwks = self.jwks.read().clone();
-                let verify_params = VerifyParams::new(
+                let aux_data = VerifyParams::new(
                     jwks,
                     self.zk_login_params.supported_providers.clone(),
                     self.zk_login_params.env.clone(),
-                    self.zk_login_params.verify_legacy_zklogin_address,
                 );
-                signed_tx
-                    .tx_signatures()
-                    .iter()
-                    .try_for_each(|sig| match sig {
-                        // If a zkLogin signature is found, check cache first. If it is in
-                        // the cache, just verifies for uncached checks, otherwise verifies
-                        // the entire zkLogin signature.
-                        GenericSignature::ZkLoginAuthenticator(z) => {
-                            self.zklogin_inputs_cache.is_verified(
-                                z.hash_inputs(),
-                                || signed_tx.verify_message_signature(&verify_params),
-                                || signed_tx.verify_uncached_checks(&verify_params),
-                            )
-                        }
-                        _ => signed_tx.verify_message_signature(&verify_params),
-                    })
-            },
-            || Ok(()),
-        )
+                signed_tx.verify_message_signature(&aux_data)
+            })
     }
 }
 
@@ -380,8 +336,6 @@ pub struct SignatureVerifierMetrics {
     pub certificate_signatures_cache_evictions: IntCounter,
     pub signed_data_cache_hits: IntCounter,
     pub signed_data_cache_evictions: IntCounter,
-    pub zklogin_inputs_cache_hits: IntCounter,
-    pub zklogin_inputs_cache_evictions: IntCounter,
     timeouts: IntCounter,
     full_batches: IntCounter,
     partial_batches: IntCounter,
@@ -415,18 +369,6 @@ impl SignatureVerifierMetrics {
                 "Number of times we evict a pre-existing signed data were known to be verified because of signature cache.",
                 registry
             )
-                .unwrap(),
-                zklogin_inputs_cache_hits: register_int_counter_with_registry!(
-                    "zklogin_inputs_cache_hits",
-                    "Number of zklogin signature which were known to be partially verified because of zklogin inputs cache.",
-                    registry
-                )
-                .unwrap(),
-                zklogin_inputs_cache_evictions: register_int_counter_with_registry!(
-                    "zklogin_inputs_cache_evictions",
-                    "Number of times we evict a pre-existing zklogin inputs digest that was known to be verified because of zklogin inputs cache.",
-                    registry
-                )
                 .unwrap(),
             timeouts: register_int_counter_with_registry!(
                 "async_batch_verifier_timeouts",
@@ -483,7 +425,7 @@ pub fn batch_verify_certificates(
     certs: &[CertifiedTransaction],
 ) -> Vec<SuiResult> {
     // certs.data() is assumed to be verified already by the caller.
-    let verify_params = VerifyParams::new(Default::default(), Vec::new(), Default::default(), true);
+    let verify_params = VerifyParams::new(Default::default(), Vec::new(), Default::default());
     match batch_verify(committee, certs, &[]) {
         Ok(_) => vec![Ok(()); certs.len()],
 
@@ -573,17 +515,13 @@ impl<D: Hash + Eq + Copy> VerifiedDigestCache<D> {
         });
     }
 
-    pub fn is_verified<F, G>(&self, digest: D, verify_callback: F, uncached_checks: G) -> SuiResult
+    pub fn is_verified<F>(&self, digest: D, verify_callback: F) -> SuiResult
     where
         F: FnOnce() -> SuiResult,
-        G: FnOnce() -> SuiResult,
     {
         if !self.is_cached(&digest) {
             verify_callback()?;
             self.cache_digest(digest);
-        } else {
-            // Checks that are required to be performed outside the cache.
-            uncached_checks()?;
         }
         Ok(())
     }

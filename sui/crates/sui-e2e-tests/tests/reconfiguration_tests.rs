@@ -594,7 +594,8 @@ async fn test_reconfig_with_committee_change_stress() {
         .build()
         .await;
 
-    while let Some(v1) = candidates.pop() {
+    while !candidates.is_empty() {
+        let v1 = candidates.pop().unwrap();
         let v2 = candidates.pop().unwrap();
         execute_add_validator_transactions(&test_cluster, &v1).await;
         execute_add_validator_transactions(&test_cluster, &v2).await;

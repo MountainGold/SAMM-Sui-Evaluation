@@ -63,10 +63,11 @@ export type CheckpointCommitment = {
 	ECMHLiveObjectSetDigest: ECMHLiveObjectSetDigest;
 };
 export type CheckpointId = string | string;
-/** A claim consists of value and index_mod_4. */
+/** Necessary value for claim. */
 export interface Claim {
-	indexMod4: number;
-	value: string;
+	index_mod_4: number;
+	name: string;
+	value_base64: string;
 }
 export interface CoinStruct {
 	balance: string;
@@ -798,9 +799,6 @@ export type SuiArgument =
 	| {
 			NestedResult: [number, number];
 	  };
-export interface SuiAuthenticatorStateExpire {
-	min_epoch: string;
-}
 export type SuiCallArg =
 	| {
 			type: 'object';
@@ -817,24 +815,10 @@ export type SuiCallArg =
 			objectType: 'sharedObject';
 	  }
 	| {
-			type: 'object';
-			digest: string;
-			objectId: string;
-			objectType: 'receiving';
-			version: string;
-	  }
-	| {
 			type: 'pure';
 			value: unknown;
 			valueType?: string | null;
 	  };
-export interface SuiChangeEpoch {
-	computation_charge: string;
-	epoch: string;
-	epoch_start_timestamp_ms: string;
-	storage_charge: string;
-	storage_rebate: string;
-}
 export interface CoinMetadata {
 	/** Number of decimal places the coin uses. */
 	decimals: number;
@@ -849,14 +833,6 @@ export interface CoinMetadata {
 	/** Symbol for the token */
 	symbol: string;
 }
-export type SuiEndOfEpochTransactionKind =
-	| 'AuthenticatorStateCreate'
-	| {
-			ChangeEpoch: SuiChangeEpoch;
-	  }
-	| {
-			AuthenticatorStateExpire: SuiAuthenticatorStateExpire;
-	  };
 export interface SuiExecutionResult {
 	/** The value of any arguments that were mutably borrowed. Non-mut borrowed values are not included */
 	mutableReferenceOutputs?: [SuiArgument, number[], string][];
@@ -1313,16 +1289,12 @@ export type SuiTransactionBlockKind =
 			 * failure of the entire programmable transaction block.
 			 */
 			transactions: SuiTransaction[];
-	  } /** A transaction which updates global authenticator state */
+	  } /** An transaction which updates global authenticator state */
 	| {
 			epoch: string;
 			kind: 'AuthenticatorStateUpdate';
 			new_active_jwks: SuiActiveJwk[];
 			round: string;
-	  } /** The transaction which occurs only at the end of the epoch */
-	| {
-			kind: 'EndOfEpochTransaction';
-			transactions: SuiEndOfEpochTransactionKind[];
 	  };
 export interface SuiTransactionBlockResponse {
 	balanceChanges?: BalanceChange[] | null;
@@ -1435,19 +1407,19 @@ export interface ValidatorsApy {
 /** An zk login authenticator with all the necessary fields. */
 export interface ZkLoginAuthenticator {
 	inputs: ZkLoginInputs;
-	maxEpoch: string;
-	userSignature: Signature;
+	max_epoch: string;
+	user_signature: Signature;
 }
-/** All inputs required for the zk login proof verification and other public inputs. */
+/** All inputs required for the zk login proof verification and other auxiliary inputs. */
 export interface ZkLoginInputs {
-	addressSeed: string;
-	headerBase64: string;
-	issBase64Details: Claim;
-	proofPoints: ZkLoginProof;
+	address_seed: string;
+	claims: Claim[];
+	header_base64: string;
+	proof_points: ZkLoginProof;
 }
-/** The struct for zk login proof. */
+/** The zk login proof. */
 export interface ZkLoginProof {
-	a: string[];
-	b: string[][];
-	c: string[];
+	pi_a: string[];
+	pi_b: string[][];
+	pi_c: string[];
 }

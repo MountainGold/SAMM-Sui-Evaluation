@@ -1,10 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { beforeEach, describe, expect, it } from 'vitest';
-
+import { describe, it, expect, beforeEach } from 'vitest';
+import { Coin, SUI_FRAMEWORK_ADDRESS } from '../../src';
+import { SuiObjectData } from '../../src/client';
 import { TransactionBlock } from '../../src/builder';
-import { SUI_FRAMEWORK_ADDRESS } from '../../src/utils';
 import { publishPackage, setup, TestToolbox } from './utils/setup';
 
 describe('Test Move call with a vector of objects as input', () => {
@@ -72,18 +72,18 @@ describe('Test Move call with a vector of objects as input', () => {
 
 	it('Test regular arg mixed with object vector arg', async () => {
 		const coins = await toolbox.getGasObjectsOwnedByAddress();
-		const coin = coins.data[3];
-		const coinIDs = coins.data.map((coin) => coin.coinObjectId);
+		const coin = coins[3].data as SuiObjectData;
+		const coinIDs = coins.map((coin) => Coin.getID(coin));
 		const tx = new TransactionBlock();
 		const vec = tx.makeMoveVec({
-			objects: [coinIDs[1], tx.object(coinIDs[2])],
+			objects: [tx.object(coinIDs[1]), tx.object(coinIDs[2])],
 		});
 		tx.moveCall({
 			target: `${SUI_FRAMEWORK_ADDRESS}::pay::join_vec`,
 			typeArguments: ['0x2::sui::SUI'],
 			arguments: [tx.object(coinIDs[0]), vec],
 		});
-		tx.setGasPayment([{ objectId: coin.coinObjectId, digest: coin.digest, version: coin.version }]);
+		tx.setGasPayment([coin]);
 		const result = await toolbox.client.signAndExecuteTransactionBlock({
 			signer: toolbox.keypair,
 			transactionBlock: tx,

@@ -529,7 +529,7 @@ async fn test_delete_range() {
         .expect("Failed to batch insert");
 
     batch
-        .schedule_delete_range(&db, &50, &100)
+        .delete_range(&db, &50, &100)
         .expect("Failed to delete range");
 
     batch.write().expect("Failed to execute batch");

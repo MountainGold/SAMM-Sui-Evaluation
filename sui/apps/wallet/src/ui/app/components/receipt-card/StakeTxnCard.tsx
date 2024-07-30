@@ -1,6 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import {
+	formatPercentageDisplay,
+	useGetValidatorsApy,
+	useGetTimeBeforeEpochNumber,
+} from '@mysten/core';
+import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+
+import { Card } from '../../shared/transaction-summary/Card';
 import { ValidatorLogo } from '_app/staking/validators/ValidatorLogo';
 import { TxnAmount } from '_components/receipt-card/TxnAmount';
 import {
@@ -10,15 +18,8 @@ import {
 import { CountDownTimer } from '_src/ui/app/shared/countdown-timer';
 import { Text } from '_src/ui/app/shared/text';
 import { IconTooltip } from '_src/ui/app/shared/tooltip';
-import {
-	formatPercentageDisplay,
-	useGetTimeBeforeEpochNumber,
-	useGetValidatorsApy,
-} from '@mysten/core';
-import type { SuiEvent } from '@mysten/sui.js/client';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
 
-import { Card } from '../../shared/transaction-summary/Card';
+import type { SuiEvent } from '@mysten/sui.js/client';
 
 type StakeTxnCardProps = {
 	event: SuiEvent;

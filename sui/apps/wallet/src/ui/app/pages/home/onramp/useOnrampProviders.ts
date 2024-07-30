@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { growthbook } from '_src/ui/app/experimentation/feature-gating';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -9,6 +8,7 @@ import { useState } from 'react';
 import MoonPay from './icons/MoonPay.svg';
 import Transak from './icons/Transak.svg';
 import { type OnrampProvider } from './types';
+import { growthbook } from '_src/ui/app/experimentation/feature-gating';
 
 const TRANSAK_API_KEY =
 	process.env.NODE_ENV === 'production'

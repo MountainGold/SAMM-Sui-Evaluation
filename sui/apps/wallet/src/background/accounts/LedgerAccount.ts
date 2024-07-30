@@ -1,14 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
-
 import {
-	Account,
 	type PasswordUnlockableAccount,
 	type SerializedAccount,
 	type SerializedUIAccount,
+	Account,
 } from './Account';
+import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 
 export interface LedgerAccountSerialized extends SerializedAccount {
 	type: 'ledger';
@@ -79,10 +78,7 @@ export class LedgerAccount
 		return !(await this.getEphemeralValue())?.unlocked;
 	}
 
-	async passwordUnlock(password?: string): Promise<void> {
-		if (!password) {
-			throw new Error('Missing password to unlock the account');
-		}
+	async passwordUnlock(password: string): Promise<void> {
 		const { encrypted } = await this.getStoredData();
 		await decrypt<string>(password, encrypted);
 		await this.setEphemeralValue({ unlocked: true });
@@ -108,7 +104,6 @@ export class LedgerAccount
 			selected,
 			nickname,
 			isPasswordUnlockable: true,
-			isKeyPairExportable: false,
 		};
 	}
 }

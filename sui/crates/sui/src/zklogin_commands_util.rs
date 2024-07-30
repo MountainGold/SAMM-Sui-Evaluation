@@ -2,20 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
-use fastcrypto::encoding::{Base64, Encoding};
-use fastcrypto::jwt_utils::parse_and_validate_jwt;
 use fastcrypto::traits::EncodeDecodeBase64;
-use fastcrypto_zkp::bn254::utils::{gen_address_seed, get_zk_login_address};
+use fastcrypto_zkp::bn254::utils::get_enoki_address;
 use fastcrypto_zkp::bn254::utils::{get_proof, get_salt};
-use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
 use regex::Regex;
 use reqwest::Client;
 use serde_json::json;
 use shared_crypto::intent::Intent;
 use std::io;
 use std::io::Write;
-use std::thread::sleep;
-use std::time::Duration;
 use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
 use sui_keys::keystore::{AccountKeystore, Keystore};
 use sui_sdk::SuiClientBuilder;
@@ -24,6 +19,8 @@ use sui_types::committee::EpochId;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::Transaction;
 use sui_types::zk_login_authenticator::ZkLoginAuthenticator;
+
+const GAS_URL: &str = "http://127.0.0.1:9123/gas";
 
 /// Read a line from stdin, parse the id_token field and return.
 pub fn read_cli_line() -> Result<String, anyhow::Error> {
@@ -42,13 +39,10 @@ pub fn read_cli_line() -> Result<String, anyhow::Error> {
 }
 
 /// A util function to request gas token from faucet for the given address.
-pub(crate) async fn request_tokens_from_faucet(
-    address: SuiAddress,
-    gas_url: &str,
-) -> Result<(), anyhow::Error> {
+pub(crate) async fn request_tokens_from_faucet(address: SuiAddress) -> Result<(), anyhow::Error> {
     let client = Client::new();
     client
-        .post(gas_url)
+        .post(GAS_URL)
         .header("Content-Type", "application/json")
         .json(&json![{
             "FixedAmountRequest": {
@@ -68,47 +62,43 @@ pub async fn perform_zk_login_test_tx(
     kp_bigint: &str,
     ephemeral_key_identifier: SuiAddress,
     keystore: &mut Keystore,
-    network: &str,
 ) -> Result<String, anyhow::Error> {
-    let (gas_url, fullnode_url) = get_config(network);
-    let user_salt = get_salt(parsed_token, "https://salt.api.mystenlabs.com/get_salt")
+    let user_salt = get_salt(parsed_token)
         .await
-        .unwrap_or("129390038577185583942388216820280642146".to_string());
+        .map_err(|_| anyhow!("Failed to get salt"))?;
     println!("User salt: {user_salt}");
-    let reader = get_proof(
+    let mut zk_login_inputs = get_proof(
         parsed_token,
         max_epoch,
         jwt_randomness,
         kp_bigint,
         &user_salt,
-        "https://prover-dev.mystenlabs.com/v1",
     )
     .await
-    .map_err(|_| anyhow!("Failed to get proof"))?;
+    .map_err(|_| anyhow!("Failed to get salt"))?;
     println!("ZkLogin inputs:");
-    println!("{:?}", serde_json::to_string(&reader).unwrap());
-    let (sub, aud) = parse_and_validate_jwt(parsed_token)?;
-    let address_seed = gen_address_seed(&user_salt, "sub", &sub, &aud)?;
-    let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed)?;
-    let zklogin_address = SuiAddress::from_bytes(get_zk_login_address(
+    println!("{:?}", serde_json::to_string(&zk_login_inputs).unwrap());
+    zk_login_inputs.init()?;
+    let zklogin_address = SuiAddress::from_bytes(get_enoki_address(
         zk_login_inputs.get_address_seed(),
-        zk_login_inputs.get_iss(),
-    )?)?;
+        zk_login_inputs.get_address_params(),
+    ))?;
     println!("ZkLogin Address: {:?}", zklogin_address);
 
     // Request some coin from faucet and build a test transaction.
-    let sui = SuiClientBuilder::default().build(fullnode_url).await?;
-    request_tokens_from_faucet(zklogin_address, gas_url).await?;
-    sleep(Duration::from_secs(10));
+    let sui = SuiClientBuilder::default()
+        .build("http://127.0.0.1:9000")
+        .await?;
+    request_tokens_from_faucet(zklogin_address).await?;
 
     let Some(coin) = sui
         .coin_read_api()
         .get_coins(zklogin_address, None, None, None)
         .await?
         .next_cursor
-    else {
-        panic!("Faucet did not work correctly and the provided Sui address has no coins")
-    };
+        else {
+            panic!("Faucet did not work correctly and the provided Sui address has no coins")
+        };
     let txb_res = sui
         .transaction_builder()
         .transfer_object(
@@ -121,7 +111,7 @@ pub async fn perform_zk_login_test_tx(
         .await?;
     println!(
         "Faucet requested and created test transaction: {:?}",
-        Base64::encode(bcs::to_bytes(&txb_res).unwrap())
+        txb_res
     );
 
     // Sign transaction with the ephemeral key
@@ -150,15 +140,4 @@ pub async fn perform_zk_login_test_tx(
         )
         .await?;
     Ok(transaction_response.digest.base58_encode())
-}
-
-fn get_config(network: &str) -> (&str, &str) {
-    match network {
-        "devnet" => (
-            "https://faucet.devnet.sui.io/gas",
-            "https://rpc.devnet.sui.io:443",
-        ),
-        "localnet" => ("http://127.0.0.1:9123/gas", "http://127.0.0.1:9000"),
-        _ => panic!("Invalid network"),
-    }
 }

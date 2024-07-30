@@ -12,9 +12,6 @@ use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::sync::Arc;
-use sui_types::base_types::{ObjectID, SequenceNumber, VersionNumber};
-use sui_types::object::Object;
-use sui_types::storage::ObjectKey;
 use sui_types::{
     digests::{
         CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
@@ -27,7 +24,7 @@ use sui_types::{
     transaction::Transaction,
 };
 use tap::TapFallible;
-use tracing::{error, info, instrument, trace, warn};
+use tracing::{error, info, trace, warn};
 use url::Url;
 
 use crate::key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait};
@@ -50,12 +47,6 @@ pub enum TaggedKey {
 
 pub fn encoded_tagged_key(key: &TaggedKey) -> String {
     let bytes = bcs::to_bytes(key).expect("failed to serialize key");
-    base64_url::encode(&bytes)
-}
-
-pub fn encode_object_key(object_id: &ObjectID, version: &VersionNumber) -> String {
-    let bytes =
-        bcs::to_bytes(&ObjectKey(*object_id, *version)).expect("failed to serialize object key");
     base64_url::encode(&bytes)
 }
 
@@ -82,7 +73,6 @@ pub enum Key {
     CheckpointContentsByDigest(CheckpointContentsDigest),
     CheckpointSummaryByDigest(CheckpointDigest),
     TxToCheckpoint(TransactionDigest),
-    ObjectKey(ObjectID, VersionNumber),
 }
 
 #[derive(Clone, Debug)]
@@ -111,7 +101,6 @@ fn key_to_path_elements(key: &Key) -> SuiResult<(String, &'static str)> {
         Key::CheckpointContentsByDigest(digest) => Ok((encode_digest(digest), "cc")),
         Key::CheckpointSummaryByDigest(digest) => Ok((encode_digest(digest), "cs")),
         Key::TxToCheckpoint(digest) => Ok((encode_digest(digest), "tx2c")),
-        Key::ObjectKey(object_id, version) => Ok((encode_object_key(object_id, version), "ob")),
     }
 }
 
@@ -257,7 +246,6 @@ where
 
 #[async_trait]
 impl TransactionKeyValueStoreTrait for HttpKVStore {
-    #[instrument(level = "trace", skip_all)]
     async fn multi_get(
         &self,
         transactions: &[TransactionDigest],
@@ -325,7 +313,6 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
         Ok((txn_results, fx_results, events_results))
     }
 
-    #[instrument(level = "trace", skip_all)]
     async fn multi_get_checkpoints(
         &self,
         checkpoint_summaries: &[CheckpointSequenceNumber],
@@ -423,7 +410,6 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
         ))
     }
 
-    #[instrument(level = "trace", skip_all)]
     async fn deprecated_get_transaction_checkpoint(
         &self,
         digest: TransactionDigest,
@@ -432,42 +418,5 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
         self.fetch(key).await.map(|maybe| {
             maybe.and_then(|bytes| deser::<_, CheckpointSequenceNumber>(&key, bytes.as_ref()))
         })
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    async fn get_object(
-        &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
-    ) -> SuiResult<Option<Object>> {
-        let key = Key::ObjectKey(object_id, version);
-        self.fetch(key)
-            .await
-            .map(|maybe| maybe.and_then(|bytes| deser::<_, Object>(&key, bytes.as_ref())))
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    async fn multi_get_transaction_checkpoint(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<CheckpointSequenceNumber>>> {
-        let keys = digests
-            .iter()
-            .map(|digest| Key::TxToCheckpoint(*digest))
-            .collect::<Vec<_>>();
-
-        let fetches = self.multi_fetch(keys).await;
-
-        let results = fetches
-            .iter()
-            .zip(digests.iter())
-            .map(map_fetch)
-            .map(|maybe_bytes| {
-                maybe_bytes
-                    .and_then(|(bytes, key)| deser::<_, CheckpointSequenceNumber>(&key, bytes))
-            })
-            .collect::<Vec<_>>();
-
-        Ok(results)
     }
 }

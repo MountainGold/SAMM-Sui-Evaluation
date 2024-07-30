@@ -10,10 +10,6 @@ const COPYRIGHT = `
 
 /** @type {import('@svgr/core').Config} */
 module.exports = {
-	// The default parser set by svgr is `babel`, which makes the import sorting plugin fail.
-	prettierConfig: {
-		parser: 'babel-ts',
-	},
 	icon: true,
 	typescript: true,
 	outDir: './src',
@@ -31,7 +27,8 @@ module.exports = {
 		return COPYRIGHT + exportEntries.join('\n');
 	},
 	template(variables, { tpl }) {
-		const template = tpl`
+		return tpl`
+    ${COPYRIGHT}
     ${variables.imports};
 
     ${variables.interfaces};
@@ -42,13 +39,5 @@ module.exports = {
 
     ${variables.exports};
     `;
-
-		// Insert the copyright header, attached to the first node:
-		template[0].leadingComments = [
-			{ type: 'CommentLine', value: ' Copyright (c) Mysten Labs, Inc.' },
-			{ type: 'CommentLine', value: ' SPDX-License-Identifier: Apache-2.0' },
-		];
-
-		return template;
 	},
 };

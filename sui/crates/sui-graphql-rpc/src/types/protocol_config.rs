@@ -3,49 +3,83 @@
 
 use async_graphql::*;
 
-/// A single protocol configuration value.
+use crate::context_data::context_ext::DataProviderContextExt;
+
 #[derive(Clone, Debug, PartialEq, Eq, SimpleObject)]
 pub(crate) struct ProtocolConfigAttr {
     pub key: String,
     pub value: String,
 }
 
-/// Whether or not a single feature is enabled in the protocol config.
 #[derive(Clone, Debug, PartialEq, Eq, SimpleObject)]
 pub(crate) struct ProtocolConfigFeatureFlag {
     pub key: String,
     pub value: bool,
 }
 
-/// Constants that control how the chain operates.
-///
-/// These can only change during protocol upgrades which happen on epoch boundaries.
-#[derive(Clone, Debug, PartialEq, Eq, SimpleObject)]
-#[graphql(complex)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ProtocolConfigs {
-    /// The protocol is not required to change on every epoch boundary, so the protocol version
-    /// tracks which change to the protocol these configs are from.
-    pub protocol_version: u64,
-
-    /// List all available feature flags and their values.  Feature flags are a form of boolean
-    /// configuration that are usually used to gate features while they are in development.  Once a
-    /// flag has been enabled, it is rare for it to be disabled.
-    pub feature_flags: Vec<ProtocolConfigFeatureFlag>,
-
-    /// List all available configurations and their values.  These configurations can take any value
-    /// (but they will all be represented in string form), and do not include feature flags.
     pub configs: Vec<ProtocolConfigAttr>,
+    pub feature_flags: Vec<ProtocolConfigFeatureFlag>,
+    pub protocol_version: u64,
 }
 
-#[ComplexObject]
+#[allow(unreachable_code)]
+#[allow(unused_variables)]
+#[Object]
 impl ProtocolConfigs {
-    /// Query for the value of the configuration with name `key`.
-    async fn config(&self, key: String) -> Option<&ProtocolConfigAttr> {
-        self.configs.iter().find(|config| config.key == key)
+    async fn configs(&self, ctx: &Context<'_>) -> Result<Option<Vec<ProtocolConfigAttr>>> {
+        Ok(Some(
+            ctx.data_provider()
+                .fetch_protocol_config(None)
+                .await?
+                .configs,
+        ))
     }
 
-    /// Query for the state of the feature flag with name `key`.
-    async fn feature_flag(&self, key: String) -> Option<&ProtocolConfigFeatureFlag> {
-        self.feature_flags.iter().find(|config| config.key == key)
+    async fn feature_flags(
+        &self,
+        ctx: &Context<'_>,
+    ) -> Result<Option<Vec<ProtocolConfigFeatureFlag>>> {
+        Ok(Some(
+            ctx.data_provider()
+                .fetch_protocol_config(None)
+                .await?
+                .feature_flags,
+        ))
+    }
+
+    async fn protocol_version(&self, ctx: &Context<'_>) -> Result<u64> {
+        Ok(ctx
+            .data_provider()
+            .fetch_protocol_config(None)
+            .await?
+            .protocol_version)
+    }
+
+    async fn config(&self, ctx: &Context<'_>, key: String) -> Result<Option<ProtocolConfigAttr>> {
+        match self
+            .configs(ctx)
+            .await?
+            .map(|configs| configs.into_iter().find(|config| config.key == key))
+        {
+            Some(config) => Ok(config),
+            None => Ok(None),
+        }
+    }
+
+    async fn feature_flag(
+        &self,
+        ctx: &Context<'_>,
+        key: String,
+    ) -> Result<Option<ProtocolConfigFeatureFlag>> {
+        match self
+            .feature_flags(ctx)
+            .await?
+            .map(|flags| flags.into_iter().find(|config| config.key == key))
+        {
+            Some(config) => Ok(config),
+            None => Ok(None),
+        }
     }
 }

@@ -50,6 +50,7 @@ module games::drand_based_lottery {
     /// Error codes
     const EGameNotInProgress: u64 = 0;
     const EGameAlreadyCompleted: u64 = 1;
+    const EInvalidRandomness: u64 = 2;
     const EInvalidTicket: u64 = 3;
 
     /// Game status

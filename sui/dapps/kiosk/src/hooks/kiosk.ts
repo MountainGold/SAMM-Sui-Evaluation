@@ -2,26 +2,26 @@
 // SPDX-License-Identifier: Apache-2.0
 /* eslint-disable @tanstack/query/exhaustive-deps */
 
-import {
-	getKioskObject,
-	Kiosk,
-	KioskData,
-	KioskItem,
-	KioskListing,
-	KioskOwnerCap,
-} from '@mysten/kiosk';
-import { SuiObjectResponse } from '@mysten/sui.js/client';
 import { useQuery } from '@tanstack/react-query';
-
-import { OwnedObjectType } from '../components/Inventory/OwnedObjects';
-import { useKioskClient } from '../context/KioskClientContext';
-import { useRpc } from '../context/RpcClientContext';
 import {
 	TANSTACK_KIOSK_DATA_KEY,
 	TANSTACK_KIOSK_KEY,
 	TANSTACK_OWNED_KIOSK_KEY,
 } from '../utils/constants';
+import { useRpc } from '../context/RpcClientContext';
+import { SuiObjectResponse } from '@mysten/sui.js/client';
+import {
+	Kiosk,
+	KioskData,
+	KioskItem,
+	KioskListing,
+	KioskOwnerCap,
+	fetchKiosk,
+	getKioskObject,
+	getOwnedKiosks,
+} from '@mysten/kiosk';
 import { parseObjectDisplays, processKioskListings } from '../utils/utils';
+import { OwnedObjectType } from '../components/Inventory/OwnedObjects';
 
 export type KioskFnType = (item: OwnedObjectType, price?: string) => Promise<void> | void;
 
@@ -30,7 +30,7 @@ export type KioskFnType = (item: OwnedObjectType, price?: string) => Promise<voi
  * If the user doesn't have a kiosk, the return is an object with null values.
  */
 export function useOwnedKiosk(address: string | undefined) {
-	const kioskClient = useKioskClient();
+	const provider = useRpc();
 
 	return useQuery({
 		queryKey: [TANSTACK_OWNED_KIOSK_KEY, address],
@@ -39,16 +39,16 @@ export function useOwnedKiosk(address: string | undefined) {
 		queryFn: async (): Promise<{
 			caps: KioskOwnerCap[];
 			kioskId: string | undefined;
-			kioskCap: KioskOwnerCap;
+			kioskCap: string | undefined;
 		} | null> => {
 			if (!address) return null;
 
-			const { kioskOwnerCaps, kioskIds } = await kioskClient.getOwnedKiosks({ address });
+			const { kioskOwnerCaps, kioskIds } = await getOwnedKiosks(provider, address);
 
 			return {
 				caps: kioskOwnerCaps,
 				kioskId: kioskIds[0],
-				kioskCap: kioskOwnerCaps[0],
+				kioskCap: kioskOwnerCaps[0]?.objectId,
 			};
 		},
 	});
@@ -58,7 +58,7 @@ export function useOwnedKiosk(address: string | undefined) {
  * A hook to fetch a kiosk (items, listings, etc) by its id.
  */
 export function useKiosk(kioskId: string | undefined | null) {
-	const kioskClient = useKioskClient();
+	const provider = useRpc();
 
 	return useQuery({
 		queryKey: [TANSTACK_KIOSK_KEY, kioskId],
@@ -67,18 +67,25 @@ export function useKiosk(kioskId: string | undefined | null) {
 			items: SuiObjectResponse[];
 		}> => {
 			if (!kioskId) return { kioskData: null, items: [] };
-			const res = await kioskClient.getKiosk({
-				id: kioskId,
-				options: {
+			const { data: res } = await fetchKiosk(
+				provider,
+				kioskId,
+				{ limit: 1000 },
+				{
 					withKioskFields: true,
 					withListingPrices: true,
-					withObjects: true,
 				},
+			);
+
+			// get the items from rpc.
+			const items = await provider.multiGetObjects({
+				ids: res.itemIds,
+				options: { showDisplay: true, showType: true },
 			});
 
 			return {
 				kioskData: res,
-				items: res.items,
+				items,
 			};
 		},
 		retry: false,

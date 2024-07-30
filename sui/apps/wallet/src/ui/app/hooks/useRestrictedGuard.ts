@@ -41,7 +41,7 @@ export function useRestrictedGuard() {
 
 			return { restricted: false };
 		},
-		gcTime: 0,
+		cacheTime: 0,
 		retry: 0,
 	});
 

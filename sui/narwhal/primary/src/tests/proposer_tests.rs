@@ -2,8 +2,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use super::*;
-use crate::consensus::LeaderSwapTable;
 use crate::NUM_SHUTDOWN_RECEIVERS;
+use consensus::consensus::LeaderSwapTable;
 use indexmap::IndexMap;
 use prometheus::Registry;
 use test_utils::{fixture_payload, latest_protocol_version, CommitteeFixture};
@@ -21,7 +21,6 @@ async fn propose_empty() {
     let (_tx_parents, rx_parents) = test_utils::test_channel!(1);
     let (_tx_committed_own_headers, rx_committed_own_headers) = test_utils::test_channel!(1);
     let (_tx_our_digests, rx_our_digests) = test_utils::test_channel!(1);
-    let (_tx_system_messages, rx_system_messages) = test_utils::test_channel!(1);
     let (tx_headers, mut rx_headers) = test_utils::test_channel!(1);
     let (tx_narwhal_round_updates, _rx_narwhal_round_updates) = watch::channel(0u64);
 
@@ -31,7 +30,6 @@ async fn propose_empty() {
     let _proposer_handle = Proposer::spawn(
         name,
         committee.clone(),
-        &latest_protocol_version(),
         ProposerStore::new_for_tests(),
         /* header_num_of_batches_threshold */ 32,
         /* max_header_num_of_batches */ 100,
@@ -41,7 +39,6 @@ async fn propose_empty() {
         tx_shutdown.subscribe(),
         /* rx_core */ rx_parents,
         /* rx_workers */ rx_our_digests,
-        rx_system_messages,
         /* tx_core */ tx_headers,
         tx_narwhal_round_updates,
         rx_committed_own_headers,
@@ -68,7 +65,6 @@ async fn propose_payload_and_repropose_after_n_seconds() {
     let mut tx_shutdown = PreSubscribedBroadcastSender::new(NUM_SHUTDOWN_RECEIVERS);
     let (tx_parents, rx_parents) = test_utils::test_channel!(1);
     let (tx_our_digests, rx_our_digests) = test_utils::test_channel!(1);
-    let (_tx_system_messages, rx_system_messages) = test_utils::test_channel!(1);
     let (_tx_committed_own_headers, rx_committed_own_headers) = test_utils::test_channel!(1);
     let (tx_headers, mut rx_headers) = test_utils::test_channel!(1);
     let (tx_narwhal_round_updates, _rx_narwhal_round_updates) = watch::channel(0u64);
@@ -81,7 +77,6 @@ async fn propose_payload_and_repropose_after_n_seconds() {
     let _proposer_handle = Proposer::spawn(
         name,
         committee.clone(),
-        &latest_protocol_version(),
         ProposerStore::new_for_tests(),
         /* header_num_of_batches_threshold */ 1,
         /* max_header_num_of_batches */ max_num_of_batches,
@@ -93,7 +88,6 @@ async fn propose_payload_and_repropose_after_n_seconds() {
         tx_shutdown.subscribe(),
         /* rx_core */ rx_parents,
         /* rx_workers */ rx_our_digests,
-        rx_system_messages,
         /* tx_core */ tx_headers,
         tx_narwhal_round_updates,
         rx_committed_own_headers,
@@ -153,13 +147,13 @@ async fn propose_payload_and_repropose_after_n_seconds() {
 
     // AND send some parents to advance the round
     let parents: Vec<_> = fixture
-        .headers(&latest_protocol_version())
+        .headers()
         .iter()
         .take(4)
-        .map(|h| fixture.certificate(&latest_protocol_version(), h))
+        .map(|h| fixture.certificate(h))
         .collect();
 
-    let result = tx_parents.send((parents, 1)).await;
+    let result = tx_parents.send((parents, 1, 0)).await;
     assert!(result.is_ok());
 
     // THEN the header should contain max_num_of_batches
@@ -196,7 +190,6 @@ async fn equivocation_protection() {
     let mut tx_shutdown = PreSubscribedBroadcastSender::new(NUM_SHUTDOWN_RECEIVERS);
     let (tx_parents, rx_parents) = test_utils::test_channel!(1);
     let (tx_our_digests, rx_our_digests) = test_utils::test_channel!(1);
-    let (_tx_system_messages, rx_system_messages) = test_utils::test_channel!(1);
     let (tx_headers, mut rx_headers) = test_utils::test_channel!(1);
     let (tx_narwhal_round_updates, _rx_narwhal_round_updates) = watch::channel(0u64);
     let (_tx_committed_own_headers, rx_committed_own_headers) = test_utils::test_channel!(1);
@@ -206,7 +199,6 @@ async fn equivocation_protection() {
     let proposer_handle = Proposer::spawn(
         authority_id,
         committee.clone(),
-        &latest_protocol_version(),
         proposer_store.clone(),
         /* header_num_of_batches_threshold */ 1,
         /* max_header_num_of_batches */ 10,
@@ -218,7 +210,6 @@ async fn equivocation_protection() {
         tx_shutdown.subscribe(),
         /* rx_core */ rx_parents,
         /* rx_workers */ rx_our_digests,
-        rx_system_messages,
         /* tx_core */ tx_headers,
         tx_narwhal_round_updates,
         rx_committed_own_headers,
@@ -247,13 +238,13 @@ async fn equivocation_protection() {
 
     // Create and send parents
     let parents: Vec<_> = fixture
-        .headers(&latest_protocol_version())
+        .headers()
         .iter()
         .take(3)
-        .map(|h| fixture.certificate(&latest_protocol_version(), h))
+        .map(|h| fixture.certificate(h))
         .collect();
 
-    let result = tx_parents.send((parents, 1)).await;
+    let result = tx_parents.send((parents, 1, 0)).await;
     assert!(result.is_ok());
     assert!(rx_ack.await.is_ok());
 
@@ -272,7 +263,6 @@ async fn equivocation_protection() {
     let mut tx_shutdown = PreSubscribedBroadcastSender::new(NUM_SHUTDOWN_RECEIVERS);
     let (tx_parents, rx_parents) = test_utils::test_channel!(1);
     let (tx_our_digests, rx_our_digests) = test_utils::test_channel!(1);
-    let (_tx_system_messages, rx_system_messages) = test_utils::test_channel!(1);
     let (tx_headers, mut rx_headers) = test_utils::test_channel!(1);
     let (tx_narwhal_round_updates, _rx_narwhal_round_updates) = watch::channel(0u64);
     let (_tx_committed_own_headers, rx_committed_own_headers) = test_utils::test_channel!(1);
@@ -281,7 +271,6 @@ async fn equivocation_protection() {
     let _proposer_handle = Proposer::spawn(
         authority_id,
         committee.clone(),
-        &latest_protocol_version(),
         proposer_store,
         /* header_num_of_batches_threshold */ 1,
         /* max_header_num_of_batches */ 10,
@@ -293,7 +282,6 @@ async fn equivocation_protection() {
         tx_shutdown.subscribe(),
         /* rx_core */ rx_parents,
         /* rx_workers */ rx_our_digests,
-        rx_system_messages,
         /* tx_core */ tx_headers,
         tx_narwhal_round_updates,
         rx_committed_own_headers,
@@ -321,13 +309,13 @@ async fn equivocation_protection() {
 
     // Create and send a superset parents, same round but different set from before
     let parents: Vec<_> = fixture
-        .headers(&latest_protocol_version())
+        .headers()
         .iter()
         .take(4)
-        .map(|h| fixture.certificate(&latest_protocol_version(), h))
+        .map(|h| fixture.certificate(h))
         .collect();
 
-    let result = tx_parents.send((parents, 1)).await;
+    let result = tx_parents.send((parents, 1, 0)).await;
     assert!(result.is_ok());
     assert!(rx_ack.await.is_ok());
 

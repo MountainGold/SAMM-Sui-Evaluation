@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-	decrypt as metamaskDecrypt,
 	encrypt as metamaskEncrypt,
+	decrypt as metamaskDecrypt,
 } from '@metamask/browser-passworder';
 import { randomBytes } from '@noble/hashes/utils';
 
@@ -19,8 +19,7 @@ export type Serializable =
 	| boolean
 	| null
 	| { [index: string]: Serializable | undefined }
-	| Serializable[]
-	| (Iterable<Serializable> & { length: number });
+	| Serializable[];
 
 export async function encrypt(password: string, secrets: Serializable): Promise<string> {
 	return metamaskEncrypt(password, secrets);

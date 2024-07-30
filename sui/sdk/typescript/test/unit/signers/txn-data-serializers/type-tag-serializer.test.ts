@@ -1,9 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from 'vitest';
-
-import { TypeTagSerializer } from '../../../../src/bcs/type-tag-serializer.js';
+import { it, describe, expect } from 'vitest';
+import { TypeTagSerializer } from '../../../../src/builder/type-tag-serializer.js';
 
 describe('parseFromStr', () => {
 	it('parses nested struct type from a string', () => {

@@ -10,6 +10,7 @@ module defi::shared_escrow_tests {
 
     const ALICE_ADDRESS: address = @0xACE;
     const BOB_ADDRESS: address = @0xACEB;
+    const THIRD_PARTY_ADDRESS: address = @0xFACE;
     const RANDOM_ADDRESS: address = @123;
 
     // Error codes.

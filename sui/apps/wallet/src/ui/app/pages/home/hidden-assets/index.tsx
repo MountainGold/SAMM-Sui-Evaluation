@@ -1,6 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { getKioskIdFromOwnerCap, isKioskOwnerToken, useMultiGetObjects } from '@mysten/core';
+import { EyeClose16 } from '@mysten/icons';
+
+import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
+
+import { useHiddenAssets } from './HiddenAssetsProvider';
 import Alert from '_components/alert';
 import { ErrorBoundary } from '_components/error-boundary';
 import Loading from '_components/loading';
@@ -9,24 +16,17 @@ import { NFTDisplayCard } from '_components/nft-display';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import PageTitle from '_src/ui/app/shared/PageTitle';
-import { getKioskIdFromOwnerCap, isKioskOwnerToken, useMultiGetObjects } from '@mysten/core';
-import { EyeClose16 } from '@mysten/icons';
-import { keepPreviousData } from '@tanstack/react-query';
-import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
-
-import { useHiddenAssets } from './HiddenAssetsProvider';
 
 function HiddenNftsPage() {
 	const { hiddenAssetIds, showAsset } = useHiddenAssets();
 
-	const { data, isLoading, isPending, isError, error } = useMultiGetObjects(
+	const { data, isInitialLoading, isLoading, isError, error } = useMultiGetObjects(
 		hiddenAssetIds,
 		{
 			showDisplay: true,
 			showType: true,
 		},
-		{ placeholderData: keepPreviousData },
+		{ keepPreviousData: true },
 	);
 
 	const filteredAndSortedNfts = useMemo(() => {
@@ -53,7 +53,7 @@ function HiddenNftsPage() {
 			});
 	}, [hiddenAssetIds, data]);
 
-	if (isLoading) {
+	if (isInitialLoading) {
 		return (
 			<div className="mt-1 flex w-full justify-center">
 				<LoadingSpinner />
@@ -64,7 +64,7 @@ function HiddenNftsPage() {
 	return (
 		<div className="flex flex-1 flex-col flex-nowrap items-center gap-4">
 			<PageTitle title="Hidden Assets" back="/nfts" />
-			<Loading loading={isPending && Boolean(hiddenAssetIds.length)}>
+			<Loading loading={isLoading && Boolean(hiddenAssetIds.length)}>
 				{isError ? (
 					<Alert>
 						<div>
@@ -74,7 +74,7 @@ function HiddenNftsPage() {
 					</Alert>
 				) : null}
 				{filteredAndSortedNfts?.length ? (
-					<div className="flex flex-col w-full divide-y divide-solid divide-gray-40 divide-x-0 gap-2">
+					<div className="flex flex-col w-full divide-y divide-solid divide-gray-40 divide-x-0 gap-2 mb-5">
 						{filteredAndSortedNfts.map((nft) => {
 							const { objectId, type } = nft.data!;
 							return (

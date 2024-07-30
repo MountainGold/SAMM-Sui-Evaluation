@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { toB58 } from '@mysten/bcs';
-import { describe, expect, it } from 'vitest';
-
-import { bcs } from '../../bcs/index.js';
-import { TransactionBlock, Transactions } from '../index.js';
+import { describe, it, expect } from 'vitest';
+import { TransactionBlock, Transactions, builder } from '../index.js';
 import { Inputs } from '../Inputs.js';
 
 it('can construct and serialize an empty tranaction', () => {
@@ -13,26 +11,9 @@ it('can construct and serialize an empty tranaction', () => {
 	expect(() => tx.serialize()).not.toThrow();
 });
 
-it('can construct a receiving transaction argument', () => {
-	const tx = new TransactionBlock();
-	tx.object(Inputs.ReceivingRef(ref()));
-	expect(() => tx.serialize()).not.toThrow();
-});
-
-it('receiving transaction argument different from object argument', () => {
-	const oref = ref();
-	const rtx = new TransactionBlock();
-	rtx.object(Inputs.ReceivingRef(oref));
-	const otx = new TransactionBlock();
-	otx.object(Inputs.ObjectRef(oref));
-	expect(() => rtx.serialize()).not.toThrow();
-	expect(() => otx.serialize()).not.toThrow();
-	expect(otx.serialize()).not.toEqual(rtx.serialize());
-});
-
 it('can be serialized and deserialized to the same values', () => {
 	const tx = new TransactionBlock();
-	tx.add(Transactions.SplitCoins(tx.gas, [tx.pure.u64(100)]));
+	tx.add(Transactions.SplitCoins(tx.gas, [tx.pure(100)]));
 	const serialized = tx.serialize();
 	const tx2 = TransactionBlock.from(serialized);
 	expect(serialized).toEqual(tx2.serialize());
@@ -40,7 +21,7 @@ it('can be serialized and deserialized to the same values', () => {
 
 it('allows transfer with the result of split transactions', () => {
 	const tx = new TransactionBlock();
-	const coin = tx.add(Transactions.SplitCoins(tx.gas, [tx.pure.u64(100)]));
+	const coin = tx.add(Transactions.SplitCoins(tx.gas, [tx.pure(100)]));
 	tx.add(Transactions.TransferObjects([coin], tx.object('0x2')));
 });
 
@@ -101,7 +82,7 @@ describe('offline build', () => {
 
 	it('supports pre-serialized inputs as Uint8Array', async () => {
 		const tx = setup();
-		const inputBytes = bcs.ser('u64', 100n).toBytes();
+		const inputBytes = builder.ser('u64', 100n).toBytes();
 		// Use bytes directly in pure value:
 		tx.add(Transactions.SplitCoins(tx.gas, [tx.pure(inputBytes)]));
 		// Use bytes in input helper:
@@ -111,47 +92,35 @@ describe('offline build', () => {
 
 	it('builds a more complex interaction', async () => {
 		const tx = setup();
-		const coin = tx.splitCoins(tx.gas, [100]);
-		tx.add(Transactions.MergeCoins(tx.gas, [coin, tx.object(Inputs.ObjectRef(ref()))]));
-		tx.add(
-			Transactions.MoveCall({
-				target: '0x2::devnet_nft::mint',
-				typeArguments: [],
-				arguments: [tx.pure.string('foo'), tx.pure.string('bar'), tx.pure.string('baz')],
-			}),
-		);
-		await tx.build();
-	});
-
-	it('uses a receiving argument', async () => {
-		const tx = setup();
-		tx.object(Inputs.ObjectRef(ref()));
 		const coin = tx.add(Transactions.SplitCoins(tx.gas, [tx.pure(100)]));
 		tx.add(Transactions.MergeCoins(tx.gas, [coin, tx.object(Inputs.ObjectRef(ref()))]));
 		tx.add(
 			Transactions.MoveCall({
 				target: '0x2::devnet_nft::mint',
 				typeArguments: [],
-				arguments: [tx.object(Inputs.ObjectRef(ref())), tx.object(Inputs.ReceivingRef(ref()))],
+				arguments: [
+					tx.pure(Inputs.Pure('foo', 'string')),
+					tx.pure(Inputs.Pure('bar', 'string')),
+					tx.pure(Inputs.Pure('baz', 'string')),
+				],
 			}),
 		);
-
-		const bytes = await tx.build();
-		const tx2 = TransactionBlock.from(bytes);
-		const bytes2 = await tx2.build();
-
-		expect(bytes).toEqual(bytes2);
+		await tx.build();
 	});
 
 	it('builds a more complex interaction', async () => {
 		const tx = setup();
-		const coin = tx.splitCoins(tx.gas, [100]);
+		const coin = tx.add(Transactions.SplitCoins(tx.gas, [tx.pure(100)]));
 		tx.add(Transactions.MergeCoins(tx.gas, [coin, tx.object(Inputs.ObjectRef(ref()))]));
 		tx.add(
 			Transactions.MoveCall({
 				target: '0x2::devnet_nft::mint',
 				typeArguments: [],
-				arguments: [tx.pure.string('foo'), tx.pure.string('bar'), tx.pure.string('baz')],
+				arguments: [
+					tx.pure(Inputs.Pure('foo', 'string')),
+					tx.pure(Inputs.Pure('bar', 'string')),
+					tx.pure(Inputs.Pure('baz', 'string')),
+				],
 			}),
 		);
 

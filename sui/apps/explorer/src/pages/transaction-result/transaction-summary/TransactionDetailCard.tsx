@@ -6,8 +6,7 @@ import { type ReactNode } from 'react';
 
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { AddressLink, CheckpointSequenceLink, EpochLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
+import { TransactionBlockCard, TransactionBlockCardSection } from '~/ui/TransactionBlockCard';
 
 export function TransactionDetail({ label, value }: { label: string; value: ReactNode | string }) {
 	return (
@@ -39,8 +38,8 @@ export function TransactionDetailCard({
 	const { data: domainName } = useResolveSuiNSName(sender);
 
 	return (
-		<CollapsibleCard size={md ? 'md' : 'sm'}>
-			<CollapsibleSection>
+		<TransactionBlockCard size={md ? 'md' : 'sm'}>
+			<TransactionBlockCardSection>
 				<div className="flex flex-col gap-6">
 					{timestamp && (
 						<Text variant="pBody/medium" color="steel-dark">
@@ -70,7 +69,7 @@ export function TransactionDetailCard({
 						)}
 					</div>
 				</div>
-			</CollapsibleSection>
-		</CollapsibleCard>
+			</TransactionBlockCardSection>
+		</TransactionBlockCard>
 	);
 }

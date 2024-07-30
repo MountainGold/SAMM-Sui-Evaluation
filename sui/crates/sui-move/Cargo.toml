@@ -18,6 +18,7 @@ prometheus.workspace = true
 git-version.workspace = true
 const-str.workspace = true
 
+fastcrypto.workspace = true
 move-binary-format.workspace = true
 move-cli.workspace = true
 move-disassembler.workspace = true
@@ -26,10 +27,11 @@ move-package.workspace = true
 move-prover-boogie-backend.workspace = true
 move-prover.workspace = true
 move-unit-test.workspace = true
+move-vm-test-utils.workspace = true
 telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 
-move-vm-runtime = { path = "../../external-crates/move/crates/move-vm-runtime" }
+move-vm-runtime = { path = "../../external-crates/move/move-vm/runtime" }
 sui-move-natives = { path = "../../sui-execution/latest/sui-move-natives", package = "sui-move-natives-latest" }
 
 sui-core = { workspace = true, optional = true }

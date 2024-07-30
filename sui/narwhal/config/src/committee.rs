@@ -4,8 +4,7 @@
 
 use crate::{CommitteeUpdateError, ConfigError, Epoch, Stake};
 use crypto::{NetworkPublicKey, PublicKey, PublicKeyBytes};
-use fastcrypto::serde_helpers::ToFromByteArray;
-use fastcrypto::traits::{EncodeDecodeBase64, ToFromBytes};
+use fastcrypto::traits::EncodeDecodeBase64;
 use mysten_network::Multiaddr;
 use mysten_util_mem::MallocSizeOf;
 use rand::rngs::StdRng;
@@ -243,34 +242,6 @@ impl Committee {
         self.authorities.keys().cloned().collect::<Vec<PublicKey>>()
     }
 
-    /// Returns info from the committee needed for randomness DKG.
-    pub fn randomness_dkg_info(
-        &self,
-    ) -> Vec<(
-        AuthorityIdentifier,
-        fastcrypto_tbls::ecies::PublicKey<fastcrypto::groups::bls12381::G2Element>,
-        Stake,
-    )> {
-        self.authorities_by_id
-            .iter()
-            .map(|(id, authority)| {
-                let pk = fastcrypto::groups::bls12381::G2Element::from_byte_array(
-                    authority
-                        .protocol_key()
-                        .as_bytes()
-                        .try_into()
-                        .expect("key length should match"),
-                )
-                .expect("should work to convert BLS key to G2Element");
-                (
-                    *id,
-                    fastcrypto_tbls::ecies::PublicKey::from(pk),
-                    authority.stake(),
-                )
-            })
-            .collect()
-    }
-
     pub fn authorities(&self) -> impl Iterator<Item = &Authority> {
         self.authorities.values()
     }
@@ -419,7 +390,6 @@ impl Committee {
     /// Update the networking information of some of the primaries. The arguments are a full vector of
     /// authorities which Public key and Stake must match the one stored in the current Committee. Any discrepancy
     /// will generate no update and return a vector of errors.
-    #[allow(clippy::manual_try_fold)]
     pub fn update_primary_network_info(
         &mut self,
         mut new_info: BTreeMap<PublicKey, (Stake, Multiaddr)>,

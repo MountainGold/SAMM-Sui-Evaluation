@@ -1,52 +1,51 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCoinsStore } from '_app/zustand/coins';
-import { get } from 'idb-keyval';
-import { useCallback, useEffect } from 'react';
+import { get, set } from 'idb-keyval';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useRecognizedPackages } from './useRecognizedPackages';
 
 const PINNED_COIN_TYPES = 'pinned-coin-types';
 
 export function usePinnedCoinTypes() {
-	const coinsStore = useCoinsStore();
-	const setPinnedCoinTypes = coinsStore.setPinnedCoinTypes;
-	const internalPinnedCoinTypes = coinsStore.pinnedCoinTypes;
 	const recognizedPackages = useRecognizedPackages();
+	const [internalPinnedCoinTypes, internalSetPinnedCoinTypes] = useState<string[]>([]);
+
+	// TODO: Ideally this should also update storage so that we don't need to keep track of pinned coins that have become recognized
+	// In the event that a user pins a coin that becomes recognized, we need to remove it from pins:
+	const pinnedCoinTypes = internalPinnedCoinTypes.filter(
+		(coinType) => !recognizedPackages.includes(coinType.split('::')[0]),
+	);
 
 	useEffect(() => {
 		(async () => {
 			const pinnedCoins = await get<string[]>(PINNED_COIN_TYPES);
-
 			if (pinnedCoins) {
-				const filteredPinnedCoins = pinnedCoins.filter(
-					(coinType) => !recognizedPackages.includes(coinType.split('::')[0]),
-				);
-				setPinnedCoinTypes(PINNED_COIN_TYPES, filteredPinnedCoins);
+				internalSetPinnedCoinTypes(pinnedCoins);
 			}
 		})();
-	}, [recognizedPackages, setPinnedCoinTypes]);
+	}, []);
 
 	const pinCoinType = useCallback(
 		async (newCoinType: string) => {
-			if (internalPinnedCoinTypes.find((coinType) => coinType === newCoinType)) return;
+			if (pinnedCoinTypes.find((coinType) => coinType === newCoinType)) return;
 
-			const newPinnedCoinTypes = [...internalPinnedCoinTypes, newCoinType];
-			setPinnedCoinTypes(PINNED_COIN_TYPES, newPinnedCoinTypes);
+			const newPinnedCoinTypes = [...pinnedCoinTypes, newCoinType];
+			internalSetPinnedCoinTypes(newPinnedCoinTypes);
+			await set(PINNED_COIN_TYPES, newPinnedCoinTypes);
 		},
-		[internalPinnedCoinTypes, setPinnedCoinTypes],
+		[pinnedCoinTypes],
 	);
 
 	const unpinCoinType = useCallback(
 		async (removeCoinType: string) => {
-			const newPinnedCoinTypes = internalPinnedCoinTypes.filter(
-				(coinType) => coinType !== removeCoinType,
-			);
-			setPinnedCoinTypes(PINNED_COIN_TYPES, newPinnedCoinTypes);
+			const newPinnedCoinTypes = pinnedCoinTypes.filter((coinType) => coinType !== removeCoinType);
+			internalSetPinnedCoinTypes(newPinnedCoinTypes);
+			await set(PINNED_COIN_TYPES, newPinnedCoinTypes);
 		},
-		[internalPinnedCoinTypes, setPinnedCoinTypes],
+		[pinnedCoinTypes],
 	);
 
-	return [internalPinnedCoinTypes, { pinCoinType, unpinCoinType }] as const;
+	return [pinnedCoinTypes, { pinCoinType, unpinCoinType }] as const;
 }

@@ -6,22 +6,21 @@ import {
 	any,
 	array,
 	assign,
-	bigint,
 	boolean,
-	is,
 	literal,
-	nullable,
 	number,
 	object,
 	optional,
 	record,
 	string,
-	tuple,
 	union,
+	is,
+	nullable,
+	tuple,
 	unknown,
 } from 'superstruct';
-
 import { ObjectOwner } from './common.js';
+import type { OwnedObjectRef } from './transactions.js';
 
 export const ObjectType = union([string(), literal('package')]);
 export type ObjectType = Infer<typeof ObjectType>;
@@ -32,19 +31,9 @@ export const SuiObjectRef = object({
 	/** Hex code as string representing the object id */
 	objectId: string(),
 	/** Object version */
-	version: union([number(), string(), bigint()]),
+	version: union([number(), string()]),
 });
 export type SuiObjectRef = Infer<typeof SuiObjectRef>;
-
-export const OwnedObjectRef = object({
-	owner: ObjectOwner,
-	reference: SuiObjectRef,
-});
-export type OwnedObjectRef = Infer<typeof OwnedObjectRef>;
-export const TransactionEffectsModifiedAtVersions = object({
-	objectId: string(),
-	sequenceNumber: string(),
-});
 
 export const SuiGasData = object({
 	payment: array(SuiObjectRef),
@@ -118,6 +107,11 @@ export type SuiRawData = Infer<typeof SuiRawData>;
 export const SUI_DECIMALS = 9;
 
 export const MIST_PER_SUI = BigInt(1000000000);
+
+/** @deprecated Use `string` instead. */
+export const ObjectDigest = string();
+/** @deprecated Use `string` instead. */
+export type ObjectDigest = Infer<typeof ObjectDigest>;
 
 export const SuiObjectResponseError = object({
 	code: string(),
@@ -289,7 +283,7 @@ export function getObjectId(data: SuiObjectResponse | SuiObjectRef | OwnedObject
 
 export function getObjectVersion(
 	data: SuiObjectResponse | SuiObjectRef | SuiObjectData,
-): string | number | bigint | undefined {
+): string | number | undefined {
 	if ('version' in data) {
 		return data.version;
 	}

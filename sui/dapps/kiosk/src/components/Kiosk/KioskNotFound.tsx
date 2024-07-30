@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNavigate } from 'react-router-dom';
-
 import { Button } from '../Base/Button';
 
 export function KioskNotFound() {

@@ -54,7 +54,8 @@ fn check_all_compatibilities(
 ) -> datatest_stable::Result<()> {
     assert_eq!(base.len(), upgraded.len());
 
-    let compatibility_types = [
+    let compatibility_types = vec![
+        // Full compat
         Compatibility::full_check(),
         // Full compat but allow private entry functions to change
         Compatibility {

@@ -1,15 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type PermissionType } from '_src/shared/messaging/messages/payloads/permissions';
-import cn from 'clsx';
+import cn from 'classnames';
 import { useCallback, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
 
-import { useAccountByAddress } from '../../hooks/useAccountByAddress';
 import { Button } from '../../shared/ButtonUI';
-import { UnlockAccountButton } from '../accounts/UnlockAccountButton';
 import { DAppInfoCard } from '../DAppInfoCard';
+
+import { type PermissionType } from '_src/shared/messaging/messages/payloads/permissions';
+import type { ReactNode } from 'react';
 
 type UserApproveContainerProps = {
 	children: ReactNode | ReactNode[];
@@ -26,7 +25,6 @@ type UserApproveContainerProps = {
 	scrollable?: boolean;
 	blended?: boolean;
 	permissions?: PermissionType[];
-	checkAccountLock?: boolean;
 };
 
 export function UserApproveContainer({
@@ -42,7 +40,6 @@ export function UserApproveContainer({
 	addressHidden = false,
 	address,
 	permissions,
-	checkAccountLock,
 }: UserApproveContainerProps) {
 	const [submitting, setSubmitting] = useState(false);
 	const handleOnResponse = useCallback(
@@ -53,8 +50,9 @@ export function UserApproveContainer({
 		},
 		[onSubmit],
 	);
-	const { data: selectedAccount } = useAccountByAddress(address);
+
 	const parsedOrigin = useMemo(() => new URL(origin), [origin]);
+
 	return (
 		<div className="flex flex-1 flex-col flex-nowrap h-full">
 			<div className="flex-1 pb-0 flex flex-col">
@@ -65,7 +63,7 @@ export function UserApproveContainer({
 					iconUrl={originFavIcon}
 					connectedAddress={!addressHidden && address ? address : undefined}
 				/>
-				<div className="flex flex-1 flex-col px-6 bg-hero-darkest/5">{children}</div>
+				<div className="flex flex-1 flex-col p-6 bg-hero-darkest/5">{children}</div>
 			</div>
 			<div className="sticky bottom-0">
 				<div
@@ -73,31 +71,25 @@ export function UserApproveContainer({
 						'flex-row-reverse': isWarning,
 					})}
 				>
-					{!checkAccountLock || !selectedAccount?.isLocked ? (
-						<>
-							<Button
-								size="tall"
-								variant="secondary"
-								onClick={() => {
-									handleOnResponse(false);
-								}}
-								disabled={submitting}
-								text={rejectTitle}
-							/>
-							<Button
-								size="tall"
-								variant={isWarning ? 'secondary' : 'primary'}
-								onClick={() => {
-									handleOnResponse(true);
-								}}
-								disabled={approveDisabled}
-								loading={submitting || approveLoading}
-								text={approveTitle}
-							/>
-						</>
-					) : (
-						<UnlockAccountButton account={selectedAccount} title="Unlock to Approve" />
-					)}
+					<Button
+						size="tall"
+						variant="secondary"
+						onClick={() => {
+							handleOnResponse(false);
+						}}
+						disabled={submitting}
+						text={rejectTitle}
+					/>
+					<Button
+						size="tall"
+						variant={isWarning ? 'secondary' : 'primary'}
+						onClick={() => {
+							handleOnResponse(true);
+						}}
+						disabled={approveDisabled}
+						loading={submitting || approveLoading}
+						text={approveTitle}
+					/>
 				</div>
 			</div>
 		</div>

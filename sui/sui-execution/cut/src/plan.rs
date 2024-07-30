@@ -155,7 +155,7 @@ impl CutPlan {
                 let toml = src.join("Cargo.toml");
 
                 let Some(pkg_name) = package_name(toml)? else {
-                    return Ok(());
+                    return Ok(())
                 };
 
                 if !self.pending_packages.remove(&pkg_name) {
@@ -343,7 +343,7 @@ impl CutPlan {
     ) -> Result<()> {
         for field in ["dependencies", "dev-dependencies", "build-dependencies"] {
             let Some(deps) = table.get_mut(field).and_then(Item::as_table_like_mut) else {
-                continue;
+                continue
             };
 
             for (dep_name, dep) in deps.iter_mut() {
@@ -370,7 +370,7 @@ impl CutPlan {
         dep: &mut Item,
     ) -> Result<()> {
         let Some(dep) = dep.as_table_like_mut() else {
-            return Ok(());
+            return Ok(())
         };
 
         // If the dep has an explicit package name, use that as the key for finding package
@@ -383,7 +383,7 @@ impl CutPlan {
 
         // Only path-based dependencies need to be updated.
         let Some(path) = dep.get_mut("path") else {
-            return Ok(());
+            return Ok(())
         };
 
         if let Some(dep_pkg) = dep_pkg {
@@ -590,9 +590,7 @@ fn toml_path_array_to_set<P: AsRef<Path>>(
 ) -> Result<HashSet<PathBuf>> {
     let mut set = HashSet::new();
 
-    let Some(array) = table.get(field) else {
-        return Ok(set);
-    };
+    let Some(array) = table.get(field) else { return Ok(set) };
     let Some(array) = array.as_array() else {
         bail!(Error::NotAStringArray(field))
     };
@@ -720,7 +718,7 @@ mod tests {
         let root = discover_root(cut.clone()).unwrap();
 
         let sui_execution = root.join("sui-execution");
-        let move_vm_types = root.join("external-crates/move/crates/move-vm-types");
+        let move_vm_types = root.join("external-crates/move/move-vm/types");
 
         let ws = Workspace::read(&root).unwrap();
 
@@ -816,8 +814,8 @@ mod tests {
                     suffix: None,
                 },
                 Directory {
-                    src: cut.join("../../external-crates/move/crates/move-core-types"),
-                    dst: cut.join("../cut-move-core-types"),
+                    src: cut.join("../../external-crates/move/move-core"),
+                    dst: cut.join("../cut-move-core"),
                     suffix: None,
                 },
             ],
@@ -835,14 +833,14 @@ mod tests {
                 root: "$PATH",
                 directories: {
                     "$PATH/sui-execution/cut-cut",
-                    "$PATH/sui-execution/cut-move-core-types",
+                    "$PATH/sui-execution/cut-move-core",
                     "$PATH/sui-execution/exec-cut",
                 },
                 packages: {
                     "move-core-types": CutPackage {
                         dst_name: "move-core-types-feature",
-                        src_path: "$PATH/external-crates/move/crates/move-core-types",
-                        dst_path: "$PATH/sui-execution/cut-move-core-types",
+                        src_path: "$PATH/external-crates/move/move-core/types",
+                        dst_path: "$PATH/sui-execution/cut-move-core/types",
                         ws_state: Exclude,
                     },
                     "sui-adapter-latest": CutPackage {
@@ -886,9 +884,9 @@ mod tests {
 
             new [workspace] excludes:
              - to:   move-core-types-feature
-                     sui-execution/cut-move-core-types
+                     sui-execution/cut-move-core/types
                from: move-core-types
-                     external-crates/move/crates/move-core-types
+                     external-crates/move/move-core/types
 
             other packages:
         "#]]
@@ -941,8 +939,8 @@ mod tests {
                 packages: {
                     "move-core-types": CutPackage {
                         dst_name: "move-core-types-feature",
-                        src_path: "$PATH/external-crates/move/crates/move-core-types",
-                        dst_path: "$PATH/sui-execution/feature/move/crates/move-core-types",
+                        src_path: "$PATH/external-crates/move/move-core/types",
+                        dst_path: "$PATH/sui-execution/feature/move/move-core/types",
                         ws_state: Exclude,
                     },
                     "sui-adapter-latest": CutPackage {
@@ -1147,7 +1145,7 @@ mod tests {
 
         fs::write(
             root.join("Cargo.toml"),
-            [
+            vec![
                 r#"[workspace]"#,
                 r#"members = ["crates/foo"]"#,
                 r#"exclude = ["#,
@@ -1167,7 +1165,7 @@ mod tests {
 
         fs::write(
             root.join("crates/bar/Cargo.toml"),
-            [
+            vec![
                 r#"[package]"#,
                 r#"name = "bar""#,
                 r#""#,
@@ -1184,7 +1182,7 @@ mod tests {
 
         fs::write(
             root.join("crates/baz/Cargo.toml"),
-            [
+            vec![
                 r#"[package]"#,
                 r#"name = "baz""#,
                 r#""#,
@@ -1200,7 +1198,7 @@ mod tests {
 
         fs::write(
             root.join("crates/qux/Cargo.toml"),
-            [
+            vec![
                 r#"[package]"#,
                 r#"name = "qux""#,
                 r#""#,
@@ -1216,7 +1214,7 @@ mod tests {
 
         fs::write(
             root.join("crates/quy/Cargo.toml"),
-            [r#"[package]"#, r#"name = "quy""#].join("\n"),
+            vec![r#"[package]"#, r#"name = "quy""#].join("\n"),
         )
         .unwrap();
 
@@ -1323,8 +1321,8 @@ mod tests {
                     suffix: None,
                 },
                 Directory {
-                    src: cut.join("../../external-crates/move/crates/move-core-types"),
-                    dst: cut.join("../cut-move-core-types"),
+                    src: cut.join("../../external-crates/move/move-core"),
+                    dst: cut.join("../cut-move-core"),
                     suffix: None,
                 },
             ],
@@ -1342,14 +1340,14 @@ mod tests {
                 root: "$PATH",
                 directories: {
                     "$PATH/sui-execution/cut-cut",
-                    "$PATH/sui-execution/cut-move-core-types",
+                    "$PATH/sui-execution/cut-move-core",
                     "$PATH/sui-execution/exec-cut",
                 },
                 packages: {
                     "move-core-types": CutPackage {
                         dst_name: "move-core-types-feature",
-                        src_path: "$PATH/external-crates/move/crates/move-core-types",
-                        dst_path: "$PATH/sui-execution/cut-move-core-types",
+                        src_path: "$PATH/external-crates/move/move-core/types",
+                        dst_path: "$PATH/sui-execution/cut-move-core/types",
                         ws_state: Unknown,
                     },
                     "sui-adapter-latest": CutPackage {

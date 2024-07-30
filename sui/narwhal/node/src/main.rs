@@ -9,7 +9,7 @@
 )]
 
 use clap::{Parser, Subcommand};
-use config::{ChainIdentifier, Committee, Import, Parameters, WorkerCache, WorkerId};
+use config::{Committee, Import, Parameters, WorkerCache, WorkerId};
 use crypto::{KeyPair, NetworkKeyPair};
 use eyre::Context;
 use fastcrypto::traits::KeyPair as _;
@@ -23,7 +23,10 @@ use node::{
     metrics::{primary_metrics_registry, start_prometheus_server, worker_metrics_registry},
 };
 use prometheus::Registry;
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use storage::{CertificateStoreCacheMetrics, NodeStorage};
 use sui_keys::keypair_file::{
     read_authority_keypair_from_file, read_network_keypair_from_file,
@@ -311,12 +314,11 @@ async fn run(
                     primary_keypair,
                     primary_network_keypair,
                     committee,
-                    ChainIdentifier::unknown(),
                     ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown),
                     worker_cache,
                     client.clone(),
                     &store,
-                    SimpleExecutionState::new(_tx_transaction_confirmation),
+                    Arc::new(SimpleExecutionState::new(_tx_transaction_confirmation)),
                 )
                 .await?;
 
@@ -338,7 +340,7 @@ async fn run(
                     worker_cache,
                     client,
                     &store,
-                    TrivialTransactionValidator,
+                    TrivialTransactionValidator::default(),
                     None,
                 )
                 .await?;

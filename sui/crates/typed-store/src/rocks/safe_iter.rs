@@ -8,7 +8,7 @@ use rocksdb::Direction;
 
 use crate::metrics::{DBMetrics, RocksDBPerfContext};
 
-use super::{be_fix_int_ser, RocksDBRawIter, TypedStoreError};
+use super::{be_fix_int_ser, errors::TypedStoreError, RocksDBRawIter};
 use serde::{de::DeserializeOwned, Serialize};
 
 /// An iterator over all key-value pairs in a data map.

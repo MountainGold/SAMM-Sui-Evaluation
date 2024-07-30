@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/MystenLabs/sui/main/LICENSE"
     },
-    "version": "1.15.0"
+    "version": "1.10.0"
   },
   "methods": [
     {
@@ -1347,7 +1347,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "31",
+              "maxSupportedProtocolVersion": "24",
               "protocolVersion": "6",
               "featureFlags": {
                 "advance_epoch_start_time_in_safe_mode": true,
@@ -1358,31 +1358,21 @@
                 "disable_invariant_violation_check_in_swap_loc": false,
                 "disallow_adding_abilities_on_upgrade": false,
                 "disallow_change_struct_type_params_on_upgrade": false,
-                "enable_effects_v2": false,
                 "enable_jwk_consensus_updates": false,
-                "end_of_epoch_transaction_supported": false,
                 "loaded_child_object_format": false,
                 "loaded_child_object_format_type": false,
                 "loaded_child_objects_fixed": true,
                 "missing_type_is_compatibility_error": true,
-                "narwhal_certificate_v2": false,
-                "narwhal_header_v2": false,
                 "narwhal_new_leader_election_schedule": false,
                 "narwhal_versioned_metadata": false,
                 "no_extraneous_module_bytes": false,
                 "package_digest_hash_module": false,
                 "package_upgrades": true,
-                "random_beacon": false,
-                "receive_objects": false,
-                "recompute_has_public_transfer_in_execution": false,
                 "scoring_decision_with_validity_cutoff": true,
-                "shared_object_deletion": false,
                 "simple_conservation_checks": false,
                 "simplified_unwrap_then_delete": false,
-                "throughput_aware_consensus_submission": false,
                 "txn_base_cost_as_multiplier": false,
                 "upgraded_multisig_supported": false,
-                "verify_legacy_zklogin_address": false,
                 "zklogin_auth": false
               },
               "attributes": {
@@ -1422,8 +1412,6 @@
                 "buffer_stake_for_protocol_upgrade_bps": {
                   "u64": "5000"
                 },
-                "check_zklogin_id_cost_base": null,
-                "check_zklogin_issuer_cost_base": null,
                 "consensus_bad_nodes_stake_threshold": null,
                 "crypto_invalid_arguments_cost": {
                   "u64": "100"
@@ -1640,7 +1628,6 @@
                 "hmac_hmac_sha3_256_input_cost_per_byte": {
                   "u64": "2"
                 },
-                "max_age_of_jwk_in_epochs": null,
                 "max_arguments": {
                   "u32": "512"
                 },
@@ -1826,7 +1813,6 @@
                 "package_publish_cost_per_byte": {
                   "u64": "80"
                 },
-                "random_beacon_reduction_allowed_delta": null,
                 "reward_slashing_rate": {
                   "u64": "10000"
                 },
@@ -1848,7 +1834,6 @@
                 "transfer_freeze_object_cost_base": {
                   "u64": "52"
                 },
-                "transfer_receive_object_cost_base": null,
                 "transfer_share_object_cost_base": {
                   "u64": "52"
                 },
@@ -2833,11 +2818,11 @@
               "name": "past_objects",
               "value": [
                 {
-                  "objectId": "0x5056aa3325512c8af40b9f5fd7065c83ded900657eac70a7979c2541646fa449",
+                  "objectId": "0x7d0cd09d3cc1679290f1df2803b32b76ba0395dbb635e3fb7390f04e6567f739",
                   "version": "4"
                 },
                 {
-                  "objectId": "0xe81109dc075f537067726d63dd5287100e177404a969989215da2abfbfc098cf",
+                  "objectId": "0xb01f2f3f227a90090e6777f19aa10fd9e64e29dd4e8da119481d1a7c3c050dc5",
                   "version": "12"
                 }
               ]
@@ -2861,14 +2846,14 @@
               {
                 "status": "VersionFound",
                 "details": {
-                  "objectId": "0x5056aa3325512c8af40b9f5fd7065c83ded900657eac70a7979c2541646fa449",
+                  "objectId": "0x7d0cd09d3cc1679290f1df2803b32b76ba0395dbb635e3fb7390f04e6567f739",
                   "version": "4",
-                  "digest": "F34PCnEHm5GAP5ksDKPSdRMKz49JiqrvLUTZsiojqJS2",
+                  "digest": "J66shUHEGAe7eHtiw1bz5rvvjZcwpvnUTMEkxThxR3Kg",
                   "type": "0x2::coin::Coin<0x2::sui::SUI>",
                   "owner": {
-                    "AddressOwner": "0xfde53941b2a08a8bf752c20979842732ac019f52835282744318d6d84f3c52b3"
+                    "AddressOwner": "0x5056aa3325512c8af40b9f5fd7065c83ded900657eac70a7979c2541646fa449"
                   },
-                  "previousTransaction": "EMLrFqmDkZtFvidxKy1T8bwAiHnUiLqramE58kSUcAf8",
+                  "previousTransaction": "GcteyqtLYTc7Fig8CKtspCafwf6muuDgMtDUA1jrYKae",
                   "storageRebate": "100",
                   "content": {
                     "dataType": "moveObject",
@@ -2877,7 +2862,7 @@
                     "fields": {
                       "balance": "10000",
                       "id": {
-                        "id": "0x5056aa3325512c8af40b9f5fd7065c83ded900657eac70a7979c2541646fa449"
+                        "id": "0x7d0cd09d3cc1679290f1df2803b32b76ba0395dbb635e3fb7390f04e6567f739"
                       }
                     }
                   }
@@ -2886,14 +2871,14 @@
               {
                 "status": "VersionFound",
                 "details": {
-                  "objectId": "0xe81109dc075f537067726d63dd5287100e177404a969989215da2abfbfc098cf",
+                  "objectId": "0xb01f2f3f227a90090e6777f19aa10fd9e64e29dd4e8da119481d1a7c3c050dc5",
                   "version": "12",
-                  "digest": "FvrqyqH5yA85sziA2NoPGJ8N23kmTxeXQh4HyJAbB7c2",
+                  "digest": "2HJk4eT4Jmekwf1nNeokfibZnuaUmMFS1JYcPJdw6eB9",
                   "type": "0x2::coin::Coin<0x2::sui::SUI>",
                   "owner": {
-                    "AddressOwner": "0x13090a95287cde98d711fc27217b81e08d494bdb70c3b42f0fe27be8eb500568"
+                    "AddressOwner": "0xc65dfd6586b7d295a16b97bd4318995d4a920239e4c5d856bdbf1944a063a3ef"
                   },
-                  "previousTransaction": "6XEirxRenmgbeg4tviP43bAKsosqgySXwoBxGEWQVTii",
+                  "previousTransaction": "F34PCnEHm5GAP5ksDKPSdRMKz49JiqrvLUTZsiojqJS2",
                   "storageRebate": "100",
                   "content": {
                     "dataType": "moveObject",
@@ -2902,7 +2887,7 @@
                     "fields": {
                       "balance": "20000",
                       "id": {
-                        "id": "0x5056aa3325512c8af40b9f5fd7065c83ded900657eac70a7979c2541646fa449"
+                        "id": "0x7d0cd09d3cc1679290f1df2803b32b76ba0395dbb635e3fb7390f04e6567f739"
                       }
                     }
                   }
@@ -3151,12 +3136,14 @@
           "result": {
             "name": "Result",
             "value": {
+              "id": {
+                "id": "0x6d907beaa3a49db57bdfdb3557e6d405cbf01c293a53e01457d65e92b5d8dd68"
+              },
               "decimals": 9,
               "name": "Usdc",
               "symbol": "USDC",
               "description": "Stable coin.",
-              "iconUrl": null,
-              "id": "0x6d907beaa3a49db57bdfdb3557e6d405cbf01c293a53e01457d65e92b5d8dd68"
+              "icon_url": null
             }
           }
         }
@@ -3742,42 +3729,34 @@
           ],
           "result": {
             "name": "Result",
-            "value": [
-              {
-                "validatorAddress": "0x034462b6064a08845e2ae2942fe7c4ee816d754eb2eed23e6c6bb32c89fe1f21",
-                "stakingPool": "0xab588374445e72e0402aea014b295610579963ee67e81398729f87d81d62f399",
-                "stakes": [
-                  {
-                    "stakedSuiId": "0xc041b0f8d0938923ea7e3917608ee62df4376710024f81dd33ab6833482ee803",
-                    "stakeRequestEpoch": "62",
-                    "stakeActiveEpoch": "63",
-                    "principal": "200000000000",
-                    "status": "Active",
-                    "estimatedReward": "520000000"
-                  },
-                  {
-                    "stakedSuiId": "0x4e779a48e6ef635c7f856df4905022458bfbd22bbb46f892c42d9ec0ae4de93e",
-                    "stakeRequestEpoch": "142",
-                    "stakeActiveEpoch": "143",
-                    "principal": "200000000000",
-                    "status": "Pending"
-                  }
-                ]
-              },
-              {
-                "validatorAddress": "0x02c75973a51c17180798237326a58694a2cf5cd6fa76ed1d18f05f15e3507525",
-                "stakingPool": "0x2ddec4fb83621d55952d9172fcfcb72feae238b3186a7bb26a1ab2c982a0a9b4",
-                "stakes": [
-                  {
-                    "stakedSuiId": "0x82aa70f5a010fffc60f20194ef0f597474e8ceaf9ee4582d3a233101e322a22c",
-                    "stakeRequestEpoch": "244",
-                    "stakeActiveEpoch": "245",
-                    "principal": "200000000000",
-                    "status": "Unstaked"
-                  }
-                ]
-              }
-            ]
+            "value": {
+              "validatorAddress": "0x034462b6064a08845e2ae2942fe7c4ee816d754eb2eed23e6c6bb32c89fe1f21",
+              "stakingPool": "0xab588374445e72e0402aea014b295610579963ee67e81398729f87d81d62f399",
+              "stakes": [
+                {
+                  "stakedSuiId": "0xc041b0f8d0938923ea7e3917608ee62df4376710024f81dd33ab6833482ee803",
+                  "stakeRequestEpoch": "62",
+                  "stakeActiveEpoch": "63",
+                  "principal": "200000000000",
+                  "status": "Active",
+                  "estimatedReward": "520000000"
+                },
+                {
+                  "stakedSuiId": "0x4e779a48e6ef635c7f856df4905022458bfbd22bbb46f892c42d9ec0ae4de93e",
+                  "stakeRequestEpoch": "142",
+                  "stakeActiveEpoch": "143",
+                  "principal": "200000000000",
+                  "status": "Pending"
+                },
+                {
+                  "stakedSuiId": "0x02c75973a51c17180798237326a58694a2cf5cd6fa76ed1d18f05f15e3507525",
+                  "stakeRequestEpoch": "244",
+                  "stakeActiveEpoch": "245",
+                  "principal": "200000000000",
+                  "status": "Unstaked"
+                }
+              ]
+            }
           }
         }
       ]
@@ -3819,19 +3798,19 @@
             {
               "name": "staked_sui_ids",
               "value": [
-                "0xb2a5bea2e681ea5af4e59bd1abb0bb4fcb2747866ff92885a3c21a7703f56472",
-                "0x1c198308aa0c71b771ada6b96c16fc9c0fa754b3c61936f77fcfdaa213c2f7b4"
+                "0x2ddec4fb83621d55952d9172fcfcb72feae238b3186a7bb26a1ab2c982a0a9b4",
+                "0x82aa70f5a010fffc60f20194ef0f597474e8ceaf9ee4582d3a233101e322a22c"
               ]
             }
           ],
           "result": {
             "name": "Result",
             "value": {
-              "validatorAddress": "0xfb1b51ef9f3ed66000c0e45697dbee0954790a7b5c15ad7354f23b968be8bb06",
-              "stakingPool": "0x03d47b901cb7b3177a791cd29bb5304037fea6ced287081357950315a8842c38",
+              "validatorAddress": "0xb2a5bea2e681ea5af4e59bd1abb0bb4fcb2747866ff92885a3c21a7703f56472",
+              "stakingPool": "0x1c198308aa0c71b771ada6b96c16fc9c0fa754b3c61936f77fcfdaa213c2f7b4",
               "stakes": [
                 {
-                  "stakedSuiId": "0xb2a5bea2e681ea5af4e59bd1abb0bb4fcb2747866ff92885a3c21a7703f56472",
+                  "stakedSuiId": "0x2ddec4fb83621d55952d9172fcfcb72feae238b3186a7bb26a1ab2c982a0a9b4",
                   "stakeRequestEpoch": "62",
                   "stakeActiveEpoch": "63",
                   "principal": "200000000000",
@@ -3839,7 +3818,7 @@
                   "estimatedReward": "520000000"
                 },
                 {
-                  "stakedSuiId": "0x1c198308aa0c71b771ada6b96c16fc9c0fa754b3c61936f77fcfdaa213c2f7b4",
+                  "stakedSuiId": "0x82aa70f5a010fffc60f20194ef0f597474e8ceaf9ee4582d3a233101e322a22c",
                   "stakeRequestEpoch": "244",
                   "stakeActiveEpoch": "245",
                   "principal": "200000000000",
@@ -4210,7 +4189,7 @@
           ],
           "result": {
             "name": "Result",
-            "value": "0x70f2d83f980fe0996a92d351d6749a0a0b47998aaf3d11da24c49e014d4ccb1d"
+            "value": "0xfb1b51ef9f3ed66000c0e45697dbee0954790a7b5c15ad7354f23b968be8bb06"
           }
         }
       ]
@@ -4260,11 +4239,11 @@
           "params": [
             {
               "name": "address",
-              "value": "0xb01f2f3f227a90090e6777f19aa10fd9e64e29dd4e8da119481d1a7c3c050dc5"
+              "value": "0x70f2d83f980fe0996a92d351d6749a0a0b47998aaf3d11da24c49e014d4ccb1d"
             },
             {
               "name": "cursor",
-              "value": "0x7d0cd09d3cc1679290f1df2803b32b76ba0395dbb635e3fb7390f04e6567f739"
+              "value": "0x03d47b901cb7b3177a791cd29bb5304037fea6ced287081357950315a8842c38"
             },
             {
               "name": "limit",
@@ -4277,7 +4256,7 @@
               "data": [
                 "example.sui"
               ],
-              "nextCursor": "0x7d0cd09d3cc1679290f1df2803b32b76ba0395dbb635e3fb7390f04e6567f739",
+              "nextCursor": "0x03d47b901cb7b3177a791cd29bb5304037fea6ced287081357950315a8842c38",
               "hasNextPage": false
             }
           }
@@ -5235,9 +5214,6 @@
       "BigInt_for_uint128": {
         "type": "string"
       },
-      "BigInt_for_uint16": {
-        "type": "string"
-      },
       "BigInt_for_uint32": {
         "type": "string"
       },
@@ -5387,19 +5363,23 @@
         ]
       },
       "Claim": {
-        "description": "A claim consists of value and index_mod_4.",
+        "description": "Necessary value for claim.",
         "type": "object",
         "required": [
-          "indexMod4",
-          "value"
+          "index_mod_4",
+          "name",
+          "value_base64"
         ],
         "properties": {
-          "indexMod4": {
+          "index_mod_4": {
             "type": "integer",
             "format": "uint8",
             "minimum": 0.0
           },
-          "value": {
+          "name": {
+            "type": "string"
+          },
+          "value_base64": {
             "type": "string"
           }
         }
@@ -7701,18 +7681,6 @@
           {
             "type": "object",
             "required": [
-              "u16"
-            ],
-            "properties": {
-              "u16": {
-                "$ref": "#/components/schemas/BigInt_for_uint16"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
               "u32"
             ],
             "properties": {
@@ -8114,17 +8082,6 @@
           }
         ]
       },
-      "SuiAuthenticatorStateExpire": {
-        "type": "object",
-        "required": [
-          "min_epoch"
-        ],
-        "properties": {
-          "min_epoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          }
-        }
-      },
       "SuiCallArg": {
         "oneOf": [
           {
@@ -8181,32 +8138,6 @@
                     ]
                   }
                 }
-              },
-              {
-                "type": "object",
-                "required": [
-                  "digest",
-                  "objectId",
-                  "objectType",
-                  "version"
-                ],
-                "properties": {
-                  "digest": {
-                    "$ref": "#/components/schemas/ObjectDigest"
-                  },
-                  "objectId": {
-                    "$ref": "#/components/schemas/ObjectID"
-                  },
-                  "objectType": {
-                    "type": "string",
-                    "enum": [
-                      "receiving"
-                    ]
-                  },
-                  "version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
-                  }
-                }
               }
             ],
             "required": [
@@ -8247,33 +8178,6 @@
             }
           }
         ]
-      },
-      "SuiChangeEpoch": {
-        "type": "object",
-        "required": [
-          "computation_charge",
-          "epoch",
-          "epoch_start_timestamp_ms",
-          "storage_charge",
-          "storage_rebate"
-        ],
-        "properties": {
-          "computation_charge": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "epoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "epoch_start_timestamp_ms": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "storage_charge": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "storage_rebate": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          }
-        }
       },
       "SuiCoinMetadata": {
         "type": "object",
@@ -8321,40 +8225,6 @@
             "type": "string"
           }
         }
-      },
-      "SuiEndOfEpochTransactionKind": {
-        "oneOf": [
-          {
-            "type": "string",
-            "enum": [
-              "AuthenticatorStateCreate"
-            ]
-          },
-          {
-            "type": "object",
-            "required": [
-              "ChangeEpoch"
-            ],
-            "properties": {
-              "ChangeEpoch": {
-                "$ref": "#/components/schemas/SuiChangeEpoch"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "AuthenticatorStateExpire"
-            ],
-            "properties": {
-              "AuthenticatorStateExpire": {
-                "$ref": "#/components/schemas/SuiAuthenticatorStateExpire"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
       },
       "SuiExecutionResult": {
         "type": "object",
@@ -10124,7 +9994,7 @@
             }
           },
           {
-            "description": "A transaction which updates global authenticator state",
+            "description": "An transaction which updates global authenticator state",
             "type": "object",
             "required": [
               "epoch",
@@ -10150,28 +10020,6 @@
               },
               "round": {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            }
-          },
-          {
-            "description": "The transaction which occurs only at the end of the epoch",
-            "type": "object",
-            "required": [
-              "kind",
-              "transactions"
-            ],
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "EndOfEpochTransaction"
-                ]
-              },
-              "transactions": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SuiEndOfEpochTransactionKind"
-                }
               }
             }
           }
@@ -10632,63 +10480,66 @@
         "type": "object",
         "required": [
           "inputs",
-          "maxEpoch",
-          "userSignature"
+          "max_epoch",
+          "user_signature"
         ],
         "properties": {
           "inputs": {
             "$ref": "#/components/schemas/ZkLoginInputs"
           },
-          "maxEpoch": {
+          "max_epoch": {
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0
           },
-          "userSignature": {
+          "user_signature": {
             "$ref": "#/components/schemas/Signature"
           }
         }
       },
       "ZkLoginInputs": {
-        "description": "All inputs required for the zk login proof verification and other public inputs.",
+        "description": "All inputs required for the zk login proof verification and other auxiliary inputs.",
         "type": "object",
         "required": [
-          "addressSeed",
-          "headerBase64",
-          "issBase64Details",
-          "proofPoints"
+          "address_seed",
+          "claims",
+          "header_base64",
+          "proof_points"
         ],
         "properties": {
-          "addressSeed": {
+          "address_seed": {
             "type": "string"
           },
-          "headerBase64": {
+          "claims": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            }
+          },
+          "header_base64": {
             "type": "string"
           },
-          "issBase64Details": {
-            "$ref": "#/components/schemas/Claim"
-          },
-          "proofPoints": {
+          "proof_points": {
             "$ref": "#/components/schemas/ZkLoginProof"
           }
         }
       },
       "ZkLoginProof": {
-        "description": "The struct for zk login proof.",
+        "description": "The zk login proof.",
         "type": "object",
         "required": [
-          "a",
-          "b",
-          "c"
+          "pi_a",
+          "pi_b",
+          "pi_c"
         ],
         "properties": {
-          "a": {
+          "pi_a": {
             "type": "array",
             "items": {
               "type": "string"
             }
           },
-          "b": {
+          "pi_b": {
             "type": "array",
             "items": {
               "type": "array",
@@ -10697,7 +10548,7 @@
               }
             }
           },
-          "c": {
+          "pi_c": {
             "type": "array",
             "items": {
               "type": "string"

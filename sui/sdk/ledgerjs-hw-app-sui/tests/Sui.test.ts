@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { openTransportReplayer, RecordStore } from '@ledgerhq/hw-transport-mocker';
-import { expect, test } from 'vitest';
-
+import { test, expect } from 'vitest';
 import Sui from '../src/Sui';
 
 test('Sui init', async () => {

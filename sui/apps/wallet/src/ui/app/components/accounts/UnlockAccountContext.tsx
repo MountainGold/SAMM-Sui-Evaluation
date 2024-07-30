@@ -1,20 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SerializedUIAccount } from '_src/background/accounts/Account';
-import React, { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
-import { toast } from 'react-hot-toast';
+import React, { createContext, useContext, useState, type ReactNode, useCallback } from 'react';
 
+import { toast } from 'react-hot-toast';
+import { UnlockAccountModal } from './UnlockAccountModal';
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { useUnlockMutation } from '../../hooks/useUnlockMutation';
-import { UnlockAccountModal } from './UnlockAccountModal';
+import { type SerializedUIAccount } from '_src/background/accounts/Account';
 
 interface UnlockAccountContextType {
 	isUnlockModalOpen: boolean;
 	accountToUnlock: SerializedUIAccount | null;
 	unlockAccount: (account: SerializedUIAccount) => void;
 	lockAccount: (account: SerializedUIAccount) => void;
-	isPending: boolean;
+	isLoading: boolean;
 	hideUnlockModal: () => void;
 }
 
@@ -40,9 +40,7 @@ export const UnlockAccountProvider = ({ children }: { children: ReactNode }) => 
 				} else {
 					try {
 						// for non-password-unlockable accounts, unlock directly
-						setAccountToUnlock(account);
 						await unlockAccountMutation.mutateAsync({ id: account.id });
-						setAccountToUnlock(null);
 						toast.success('Account unlocked');
 					} catch (e) {
 						toast.error((e as Error).message || 'Failed to unlock account');
@@ -73,7 +71,7 @@ export const UnlockAccountProvider = ({ children }: { children: ReactNode }) => 
 				unlockAccount,
 				hideUnlockModal,
 				lockAccount,
-				isPending: unlockAccountMutation.isPending,
+				isLoading: unlockAccountMutation.isLoading,
 			}}
 		>
 			{children}

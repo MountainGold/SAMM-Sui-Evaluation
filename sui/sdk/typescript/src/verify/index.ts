@@ -68,10 +68,6 @@ function parseSignature(signature: SerializedSignature) {
 		};
 	}
 
-	if (parsedSignature.signatureScheme === 'ZkLogin') {
-		throw new Error('ZkLogin is not supported yet');
-	}
-
 	const publicKey = publicKeyFromRawBytes(
 		parsedSignature.signatureScheme,
 		parsedSignature.publicKey,

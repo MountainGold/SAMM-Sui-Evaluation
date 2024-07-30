@@ -90,18 +90,6 @@ impl AuthenticatorTrait for MultiSigLegacy {
         Ok(())
     }
 
-    fn verify_uncached_checks<T>(
-        &self,
-        _value: &IntentMessage<T>,
-        _author: SuiAddress,
-        _aux_verify_data: &VerifyParams,
-    ) -> Result<(), SuiError>
-    where
-        T: Serialize,
-    {
-        Ok(())
-    }
-
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
@@ -311,7 +299,7 @@ impl MultiSigPublicKeyLegacy {
             });
         }
         Ok(MultiSigPublicKeyLegacy {
-            pk_map: pks.into_iter().zip(weights).collect(),
+            pk_map: pks.into_iter().zip(weights.into_iter()).collect(),
             threshold,
         })
     }

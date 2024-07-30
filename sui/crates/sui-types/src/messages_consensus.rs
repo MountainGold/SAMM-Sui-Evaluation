@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::authenticator_state::ActiveJwk;
 use crate::base_types::{AuthorityName, ObjectRef, TransactionDigest};
 use crate::messages_checkpoint::{
     CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointTimestamp,
@@ -25,6 +26,18 @@ pub struct ConsensusCommitPrologue {
     pub round: u64,
     /// Unix timestamp from consensus
     pub commit_timestamp_ms: CheckpointTimestamp,
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct AuthenticatorStateUpdate {
+    /// Epoch of the authenticator state update transaction
+    pub epoch: u64,
+    /// Consensus round of the authenticator state update
+    pub round: u64,
+    /// newly active jwks
+    pub new_active_jwks: Vec<ActiveJwk>,
+    // to version this struct, do not add new fields. Instead, add a AuthenticatorStateUpdateV2 to
+    // TransactionKind.
 }
 
 // In practice, JWKs are about 500 bytes of json each, plus a bit more for the ID.
@@ -52,7 +65,7 @@ pub enum ConsensusTransactionKey {
     CapabilityNotification(AuthorityName, u64 /* generation */),
     // Key must include both id and jwk, because honest validators could be given multiple jwks for
     // the same id by malfunctioning providers.
-    NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
+    NewJWKFetched(JwkId, JWK),
 }
 
 impl Debug for ConsensusTransactionKey {
@@ -69,16 +82,7 @@ impl Debug for ConsensusTransactionKey {
                 name.concise(),
                 generation
             ),
-            Self::NewJWKFetched(key) => {
-                let (authority, id, jwk) = &**key;
-                write!(
-                    f,
-                    "NewJWKFetched({:?}, {:?}, {:?})",
-                    authority.concise(),
-                    id,
-                    jwk
-                )
-            }
+            Self::NewJWKFetched(id, jwk) => write!(f, "NewJWKFetched({:?}, {:?})", id, jwk),
         }
     }
 }
@@ -145,7 +149,7 @@ pub enum ConsensusTransactionKind {
     CheckpointSignature(Box<CheckpointSignatureMessage>),
     EndOfPublish(AuthorityName),
     CapabilityNotification(AuthorityCapabilities),
-    NewJWKFetched(AuthorityName, JwkId, JWK),
+    NewJWKFetched(JwkId, JWK),
 }
 
 impl ConsensusTransaction {
@@ -194,30 +198,13 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_mysticeti_certificate(
-        round: u64,
-        offset: u64,
-        certificate: CertifiedTransaction,
-    ) -> Self {
-        let mut hasher = DefaultHasher::new();
-        let tx_digest = certificate.digest();
-        tx_digest.hash(&mut hasher);
-        round.hash(&mut hasher);
-        offset.hash(&mut hasher);
-        let tracking_id = hasher.finish().to_le_bytes();
-        Self {
-            tracking_id,
-            kind: ConsensusTransactionKind::UserTransaction(Box::new(certificate)),
-        }
-    }
-
-    pub fn new_jwk_fetched(authority: AuthorityName, id: JwkId, jwk: JWK) -> Self {
+    pub fn new_jwk_fetched(id: JwkId, jwk: JWK) -> Self {
         let mut hasher = DefaultHasher::new();
         id.hash(&mut hasher);
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::NewJWKFetched(authority, id, jwk),
+            kind: ConsensusTransactionKind::NewJWKFetched(id, jwk),
         }
     }
 
@@ -244,12 +231,8 @@ impl ConsensusTransaction {
             ConsensusTransactionKind::CapabilityNotification(cap) => {
                 ConsensusTransactionKey::CapabilityNotification(cap.authority, cap.generation)
             }
-            ConsensusTransactionKind::NewJWKFetched(authority, id, key) => {
-                ConsensusTransactionKey::NewJWKFetched(Box::new((
-                    *authority,
-                    id.clone(),
-                    key.clone(),
-                )))
+            ConsensusTransactionKind::NewJWKFetched(id, key) => {
+                ConsensusTransactionKey::NewJWKFetched(id.clone(), key.clone())
             }
         }
     }

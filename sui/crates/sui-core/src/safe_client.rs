@@ -7,6 +7,7 @@ use crate::epoch::committee_store::CommitteeStore;
 use mysten_metrics::histogram::{Histogram, HistogramVec};
 use prometheus::core::GenericCounter;
 use prometheus::{register_int_counter_vec_with_registry, IntCounterVec, Registry};
+use std::collections::HashSet;
 use std::sync::Arc;
 use sui_types::crypto::AuthorityPublicKeyBytes;
 use sui_types::effects::{SignedTransactionEffects, TransactionEffectsAPI};
@@ -249,12 +250,7 @@ impl<C: Clone> SafeClient<C> {
                             transaction.into_data(),
                             cert,
                         );
-                        ct.verify_committee_sigs_only(&committee).map_err(|e| {
-                            SuiError::FailedToVerifyTxCertWithExecutedEffects {
-                                validator_name: self.address,
-                                error: e.to_string(),
-                            }
-                        })?;
+                        ct.verify_committee_sigs_only(&committee)?;
                         Ok(PlainTransactionInfoResponse::ExecutedWithCert(
                             ct,
                             signed_effects,
@@ -344,10 +340,38 @@ where
         let signed_effects =
             self.check_signed_effects_plain(digest, response.signed_effects, None)?;
 
+        // For now, validators only pass back input shared object.
+        let fastpath_input_objects = if !response.fastpath_input_objects.is_empty() {
+            let input_shared_objects = signed_effects
+                .input_shared_objects()
+                .into_iter()
+                .map(|(obj_ref, _kind)| obj_ref)
+                .collect::<HashSet<_>>();
+            for object in &response.fastpath_input_objects {
+                let obj_ref = object.compute_object_reference();
+                if !input_shared_objects.contains(&obj_ref) {
+                    error!(tx_digest=?digest, name=?self.address, ?obj_ref, "Object returned from HandleCertificateResponseV2 is not in the input shared objects of the transaction");
+                    return Err(SuiError::ByzantineAuthoritySuspicion {
+                        authority: self.address,
+                        reason: format!(
+                            "Object {:?} returned from HandleCertificateResponseV2 is not in the input shared objects of tx: {:?}",
+                            obj_ref, digest
+                        ),
+                    });
+                }
+            }
+            response
+                .fastpath_input_objects
+                .into_iter()
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+
         Ok(HandleCertificateResponseV2 {
             signed_effects,
             events: response.events,
-            fastpath_input_objects: vec![], // unused field
+            fastpath_input_objects,
         })
     }
 

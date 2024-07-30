@@ -12,6 +12,7 @@ use axum::{
     Json, TypedHeader,
 };
 use serde::{Deserialize, Serialize};
+use sui_core::authority::AuthorityState;
 use sui_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     messages_checkpoint::{
@@ -22,7 +23,7 @@ use sui_types::{
     transaction::Transaction,
 };
 
-use crate::{headers::Accept, node_state_getter::NodeStateGetter, AppError, Bcs};
+use crate::{headers::Accept, AppError, Bcs};
 
 pub const GET_LATEST_CHECKPOINT_PATH: &str = "/checkpoints";
 pub const GET_CHECKPOINT_PATH: &str = "/checkpoints/:checkpoint";
@@ -32,7 +33,7 @@ pub async fn get_full_checkpoint(
     //TODO support digest as well as sequence number
     Path(checkpoint_id): Path<CheckpointSequenceNumber>,
     TypedHeader(accept): TypedHeader<Accept>,
-    State(state): State<Arc<dyn NodeStateGetter>>,
+    State(state): State<Arc<AuthorityState>>,
 ) -> Result<Bcs<CheckpointData>, AppError> {
     if accept.as_str() != crate::APPLICATION_BCS {
         return Err(AppError(anyhow::anyhow!("invalid accept type")));
@@ -47,6 +48,7 @@ pub async fn get_full_checkpoint(
         .collect::<Vec<_>>();
 
     let transactions = state
+        .database
         .multi_get_transaction_blocks(&transaction_digests)?
         .into_iter()
         .map(|maybe_transaction| {
@@ -55,6 +57,7 @@ pub async fn get_full_checkpoint(
         .collect::<Result<Vec<_>>>()?;
 
     let effects = state
+        .database
         .multi_get_executed_effects(&transaction_digests)?
         .into_iter()
         .map(|maybe_effects| maybe_effects.ok_or_else(|| anyhow::anyhow!("missing effects")))
@@ -66,6 +69,7 @@ pub async fn get_full_checkpoint(
         .collect::<Vec<_>>();
 
     let events = state
+        .database
         .multi_get_events(&event_digests)?
         .into_iter()
         .map(|maybe_event| maybe_event.ok_or_else(|| anyhow::anyhow!("missing event")))
@@ -94,10 +98,7 @@ pub async fn get_full_checkpoint(
         let input_object_keys = fx
             .input_shared_objects()
             .into_iter()
-            .map(|kind| {
-                let (id, version) = kind.id_and_version();
-                ObjectKey(id, version)
-            })
+            .map(|(object_ref, _kind)| ObjectKey::from(object_ref))
             .chain(
                 fx.modified_at_versions()
                     .into_iter()
@@ -110,6 +111,7 @@ pub async fn get_full_checkpoint(
             .collect::<Vec<_>>();
 
         let input_objects = state
+            .database
             .multi_get_object_by_key(&input_object_keys)?
             .into_iter()
             .enumerate()
@@ -131,6 +133,7 @@ pub async fn get_full_checkpoint(
             .collect::<Vec<_>>();
 
         let output_objects = state
+            .database
             .multi_get_object_by_key(&output_object_keys)?
             .into_iter()
             .enumerate()
@@ -170,30 +173,6 @@ pub struct CheckpointData {
     pub transactions: Vec<CheckpointTransaction>,
 }
 
-impl CheckpointData {
-    pub fn output_objects(&self) -> Vec<&Object> {
-        self.transactions
-            .iter()
-            .flat_map(|tx| &tx.output_objects)
-            .collect()
-    }
-
-    pub fn input_objects(&self) -> Vec<&Object> {
-        self.transactions
-            .iter()
-            .flat_map(|tx| &tx.input_objects)
-            .collect()
-    }
-
-    pub fn all_objects(&self) -> Vec<&Object> {
-        self.transactions
-            .iter()
-            .flat_map(|tx| &tx.input_objects)
-            .chain(self.transactions.iter().flat_map(|tx| &tx.output_objects))
-            .collect()
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointTransaction {
     /// The input Transaction
@@ -209,7 +188,7 @@ pub struct CheckpointTransaction {
 }
 
 pub async fn get_latest_checkpoint(
-    State(state): State<Arc<dyn NodeStateGetter>>,
+    State(state): State<Arc<AuthorityState>>,
 ) -> Result<Json<CertifiedCheckpointSummary>, AppError> {
     let latest_checkpoint_sequence_number = state.get_latest_checkpoint_sequence_number()?;
     let verified_summary =
@@ -220,7 +199,7 @@ pub async fn get_latest_checkpoint(
 pub async fn get_checkpoint(
     //TODO support digest as well as sequence number
     Path(checkpoint_id): Path<CheckpointSequenceNumber>,
-    State(state): State<Arc<dyn NodeStateGetter>>,
+    State(state): State<Arc<AuthorityState>>,
 ) -> Result<Json<CertifiedCheckpointSummary>, AppError> {
     let verified_summary = state.get_verified_checkpoint_by_sequence_number(checkpoint_id)?;
     Ok(Json(verified_summary.into()))

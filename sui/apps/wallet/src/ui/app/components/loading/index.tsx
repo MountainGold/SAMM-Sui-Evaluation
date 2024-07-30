@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ReactNode } from 'react';
-
 import LoadingIndicator, { type LoadingIndicatorProps } from './LoadingIndicator';
+
+import type { ReactNode } from 'react';
 
 type LoadingProps = {
 	loading: boolean;

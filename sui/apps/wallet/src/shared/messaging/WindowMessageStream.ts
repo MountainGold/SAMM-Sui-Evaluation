@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Message } from '_messages';
 import { filter, fromEvent, map, share } from 'rxjs';
+
+import type { Message } from '_messages';
 import type { Observable } from 'rxjs';
 
 export type ClientType = 'sui_in-page' | 'sui_content-script';

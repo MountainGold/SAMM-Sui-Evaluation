@@ -24,8 +24,7 @@ import { useState, type ReactNode } from 'react';
 import { ObjectDisplay } from './ObjectDisplay';
 import { ExpandableList, ExpandableListControl, ExpandableListItems } from '~/ui/ExpandableList';
 import { AddressLink, ObjectLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
+import { TransactionBlockCard, TransactionBlockCardSection } from '~/ui/TransactionBlockCard';
 
 enum ItemLabels {
 	package = 'Package',
@@ -63,7 +62,7 @@ function Item({
 			)}
 			{label === ItemLabels.type && (
 				<div className="break-all text-right">
-					<Text mono variant="pBody/medium" color="steel-darker">
+					<Text variant="pBody/medium" color="steel-darker">
 						{typeName}
 					</Text>
 				</div>
@@ -196,7 +195,7 @@ function ObjectChangeEntries({ changeEntries, type, isDisplay }: ObjectChangeEnt
 	}
 
 	return (
-		<CollapsibleSection
+		<TransactionBlockCardSection
 			title={
 				<Text
 					variant="body/semibold"
@@ -226,7 +225,7 @@ function ObjectChangeEntries({ changeEntries, type, isDisplay }: ObjectChangeEnt
 					</div>
 				)}
 			</ExpandableList>
-		</CollapsibleSection>
+		</TransactionBlockCardSection>
 	);
 }
 
@@ -269,7 +268,7 @@ export function ObjectChangeEntriesCards({ data, type }: ObjectChangeEntriesCard
 			{Object.entries(data).map(([ownerAddress, changes]) => {
 				const renderFooter = ['AddressOwner', 'ObjectOwner', 'Shared'].includes(changes.ownerType);
 				return (
-					<CollapsibleCard
+					<TransactionBlockCard
 						key={ownerAddress}
 						title="Changes"
 						size="sm"
@@ -295,7 +294,7 @@ export function ObjectChangeEntriesCards({ data, type }: ObjectChangeEntriesCard
 								<ObjectChangeEntries changeEntries={changes.changes} type={type} />
 							)}
 						</div>
-					</CollapsibleCard>
+					</TransactionBlockCard>
 				);
 			})}
 		</>

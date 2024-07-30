@@ -6,34 +6,31 @@ use reqwest::Client;
 use std::fs;
 use std::io::Read;
 use std::os::unix::fs::FileExt;
-use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::{collections::BTreeMap, path::PathBuf};
 use sui::client_commands::{SuiClientCommandResult, SuiClientCommands};
-use sui_json_rpc_types::{SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI};
+use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
 use sui_move_build::{BuildConfig, SuiPackageHooks};
 use sui_sdk::rpc_types::{
-    OwnedObjectRef, SuiObjectDataOptions, SuiObjectResponseQuery, SuiTransactionBlockEffectsV1,
+    OwnedObjectRef, SuiObjectDataOptions, SuiObjectResponseQuery, SuiTransactionBlockEffects,
+    SuiTransactionBlockEffectsV1,
 };
 use sui_sdk::types::base_types::ObjectID;
 use sui_sdk::types::object::Owner;
 use sui_sdk::types::transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH;
 use sui_sdk::wallet_context::WalletContext;
-use tokio::sync::oneshot;
 
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
 use sui_source_validation_service::{
-    host_port, initialize, serve, start_prometheus_server, verify_packages, watch_for_upgrades,
-    AddressLookup, AppState, CloneCommand, Config, DirectorySource, ErrorResponse, Network,
-    NetworkLookup, Package, PackageSource, RepositorySource, SourceInfo, SourceLookup,
-    SourceResponse, SourceServiceMetrics, METRICS_HOST_PORT, SUI_SOURCE_VALIDATION_VERSION_HEADER,
+    host_port, initialize, serve, verify_packages, watch_for_upgrades, AppState, CloneCommand,
+    Config, DirectorySource, ErrorResponse, Network, NetworkLookup, Package, PackageSources,
+    RepositorySource, SourceInfo, SourceResponse, SUI_SOURCE_VALIDATION_VERSION_HEADER,
 };
 use test_cluster::TestClusterBuilder;
 
 const LOCALNET_PORT: u16 = 9000;
 const TEST_FIXTURES_DIR: &str = "tests/fixture";
 
-#[allow(clippy::await_holding_lock)]
 #[tokio::test]
 async fn test_end_to_end() -> anyhow::Result<()> {
     move_package::package_hooks::register_package_hooks(Box::new(SuiPackageHooks));
@@ -79,7 +76,7 @@ async fn test_end_to_end() -> anyhow::Result<()> {
 
     // Set up source service config to watch the upgrade cap.
     let config = Config {
-        packages: vec![PackageSource::Directory(DirectorySource {
+        packages: vec![PackageSources::Directory(DirectorySource {
             packages: vec![Package {
                 path: "unused".into(),
                 watch: Some(cap.reference.object_id), // watch the upgrade cap
@@ -88,17 +85,7 @@ async fn test_end_to_end() -> anyhow::Result<()> {
         })],
     };
     // Start watching for upgrades.
-    let mut sources = NetworkLookup::new();
-    sources.insert(Network::Localnet, AddressLookup::new());
-    let app_state = Arc::new(RwLock::new(AppState {
-        sources,
-        metrics: None,
-    }));
-    let app_state_ref = app_state.clone();
-    let (tx, rx) = oneshot::channel();
-    tokio::spawn(async move {
-        watch_for_upgrades(config.packages, app_state, Network::Localnet, Some(tx)).await
-    });
+    let t = tokio::spawn(async move { watch_for_upgrades(&config).await });
 
     // Set up to upgrade package.
     let package = effects
@@ -113,20 +100,14 @@ async fn test_end_to_end() -> anyhow::Result<()> {
     // Run the upgrade.
     run_upgrade(upgrade_pkg_path, cap, context, gas_obj_id, rgp).await?;
 
-    // Test expects to observe an upgrade transaction.
-    let Ok(SuiTransactionBlockEffects::V1(effects)) = rx.await else {
-        panic!("No upgrade transaction observed")
-    };
-    assert!(effects.status.is_ok());
-    // Test expects `sources` of server state to be empty / cleared on upgrade.
-    let app_state_ref = app_state_ref.read().unwrap();
-    assert!(app_state_ref.sources.is_empty());
+    // Test expects to terminate when we observe an upgrade transaction.
+    t.await.unwrap()?;
 
     ///////////////////////////
     // Test verify_packages
     //////////////////////////
     let config = Config {
-        packages: vec![PackageSource::Repository(RepositorySource {
+        packages: vec![PackageSources::Repository(RepositorySource {
             repository: "https://github.com/mystenlabs/sui".into(),
             branch: "main".into(),
             packages: vec![Package {
@@ -179,7 +160,7 @@ async fn run_publish(
         with_unpublished_dependencies: false,
         serialize_unsigned_transaction: false,
         serialize_signed_transaction: false,
-        no_lint: true,
+        lint: false,
     }
     .execute(context)
     .await?;
@@ -210,14 +191,14 @@ async fn run_upgrade(
         with_unpublished_dependencies: false,
         serialize_unsigned_transaction: false,
         serialize_signed_transaction: false,
-        no_lint: true,
+        lint: false,
     }
     .execute(context)
     .await?;
 
     let SuiClientCommandResult::Upgrade(response) = resp else {
-        unreachable!("Invalid upgrade response");
-    };
+            unreachable!("Invalid upgrade response");
+        };
     let SuiTransactionBlockEffects::V1(effects) = response.effects.unwrap();
     assert!(effects.status.is_ok());
     Ok(())
@@ -280,24 +261,20 @@ async fn test_api_route() -> anyhow::Result<()> {
         .into_path()
         .join("sui/move-stdlib/sources/address.move");
 
-    let mut source_lookup = SourceLookup::new();
-    source_lookup.insert(
-        Symbol::from(module),
+    let mut test_lookup = BTreeMap::new();
+    test_lookup.insert(
+        (
+            AccountAddress::from_hex_literal(address).unwrap(),
+            Symbol::from(module),
+        ),
         SourceInfo {
             path: source_path,
             source: Some("module address {...}".to_owned()),
         },
     );
-    let mut address_lookup = AddressLookup::new();
-    let account_address = AccountAddress::from_hex_literal(address).unwrap();
-    address_lookup.insert(account_address, source_lookup);
     let mut sources = NetworkLookup::new();
-    sources.insert(Network::Localnet, address_lookup);
-    let app_state = Arc::new(RwLock::new(AppState {
-        sources,
-        metrics: None,
-    }));
-    tokio::spawn(serve(app_state).expect("Cannot start service."));
+    sources.insert(Network::Localnet, test_lookup);
+    tokio::spawn(serve(AppState { sources }).expect("Cannot start service."));
 
     let client = Client::new();
 
@@ -330,35 +307,9 @@ async fn test_api_route() -> anyhow::Result<()> {
         .await?;
 
     let expected =
-        expect!["Unsupported version 'bogus' specified in header x-sui-source-validation-version"];
+        expect!["Unsupported version 'bogus' specified in header X-Sui-Source-Validation-Version"];
     expected.assert_eq(&json.error);
 
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_metrics_route() -> anyhow::Result<()> {
-    // Start metrics server
-    let metrics_listener = std::net::TcpListener::bind(METRICS_HOST_PORT)?;
-    let registry_service = start_prometheus_server(metrics_listener);
-    let prometheus_registry = registry_service.default_registry();
-    SourceServiceMetrics::new(&prometheus_registry);
-
-    let client = Client::new();
-    let response = client
-        .get(format!("http://{METRICS_HOST_PORT}/metrics"))
-        .send()
-        .await
-        .expect("Request failed.")
-        .text()
-        .await?;
-
-    let expected = expect![[r#"
-        # HELP total_requests Total number of requests received by Source Service
-        # TYPE total_requests counter
-        total_requests 0
-    "#]];
-    expected.assert_eq(response.as_str());
     Ok(())
 }
 

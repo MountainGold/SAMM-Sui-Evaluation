@@ -1,8 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { cva, type VariantProps } from 'class-variance-authority';
-
+import { type VariantProps, cva } from 'class-variance-authority';
 import { ButtonOrLink, type ButtonOrLinkProps } from '../shared/utils/ButtonOrLink';
 
 interface IconButtonProps extends ButtonOrLinkProps, VariantProps<typeof buttonStyles> {
@@ -11,7 +10,7 @@ interface IconButtonProps extends ButtonOrLinkProps, VariantProps<typeof buttonS
 
 const buttonStyles = cva(
 	[
-		'flex items-center rounded-sm bg-transparent border-0 p-0 text-hero-darkest/40 hover:text-hero-darkest/50 transition cursor-pointer',
+		'flex items-center rounded-sm bg-transparent border-0 p-0 text-steel-dark hover:text-hero cursor-pointer',
 	],
 	{
 		variants: {

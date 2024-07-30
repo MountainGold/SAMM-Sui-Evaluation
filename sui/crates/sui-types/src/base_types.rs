@@ -4,7 +4,6 @@
 
 use crate::coin::Coin;
 use crate::coin::CoinMetadata;
-use crate::coin::TreasuryCap;
 use crate::coin::COIN_MODULE_NAME;
 use crate::coin::COIN_STRUCT_NAME;
 pub use crate::committee::EpochId;
@@ -124,8 +123,6 @@ pub struct ObjectID(
     #[serde_as(as = "Readable<HexAccountAddress, _>")]
     AccountAddress,
 );
-
-pub type VersionDigest = (SequenceNumber, ObjectDigest);
 
 pub type ObjectRef = (ObjectID, SequenceNumber, ObjectDigest);
 
@@ -280,15 +277,6 @@ impl MoveObjectType {
         }
     }
 
-    pub fn is_treasury_cap(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedSui | MoveObjectType_::Coin(_) => {
-                false
-            }
-            MoveObjectType_::Other(s) => TreasuryCap::is_treasury_type(s),
-        }
-    }
-
     pub fn is_dynamic_field(&self) -> bool {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedSui | MoveObjectType_::Coin(_) => {
@@ -309,17 +297,6 @@ impl MoveObjectType {
         }
     }
 
-    pub fn try_extract_field_value(&self) -> SuiResult<TypeTag> {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedSui | MoveObjectType_::Coin(_) => {
-                Err(SuiError::ObjectDeserializationError {
-                    error: "Error extracting dynamic object value from Coin object".to_string(),
-                })
-            }
-            MoveObjectType_::Other(s) => DynamicFieldInfo::try_extract_field_value(s),
-        }
-    }
-
     pub fn is(&self, s: &StructTag) -> bool {
         match &self.0 {
             MoveObjectType_::GasCoin => GasCoin::is_gas_coin(s),
@@ -329,11 +306,6 @@ impl MoveObjectType {
             }
             MoveObjectType_::Other(o) => s == o,
         }
-    }
-
-    /// Returns the string representation of this object's type using the canonical display.    
-    pub fn to_canonical_string(&self, with_prefix: bool) -> String {
-        StructTag::from(self.clone()).to_canonical_string(with_prefix)
     }
 }
 
@@ -494,11 +466,6 @@ impl SuiAddress {
         AccountAddress::random().into()
     }
 
-    pub fn generate<R: rand::RngCore + rand::CryptoRng>(mut rng: R) -> Self {
-        let buf: [u8; SUI_ADDRESS_LENGTH] = rng.gen();
-        Self(buf)
-    }
-
     /// Serialize an `Option<SuiAddress>` in Hex.
     pub fn optional_address_as_hex<S>(
         key: &Option<SuiAddress>,
@@ -532,30 +499,6 @@ impl SuiAddress {
         <[u8; SUI_ADDRESS_LENGTH]>::try_from(bytes.as_ref())
             .map_err(|_| SuiError::InvalidAddress)
             .map(SuiAddress)
-    }
-
-    /// A workaround to derive address with padded address_seed when converting it from BigInt to bytes.
-    pub fn legacy_try_from(authenticator: &ZkLoginAuthenticator) -> SuiResult<Self> {
-        let mut hasher = DefaultHash::default();
-        hasher.update([SignatureScheme::ZkLoginAuthenticator.flag()]);
-        let iss_bytes = authenticator.get_iss().as_bytes();
-        hasher.update([iss_bytes.len() as u8]);
-        hasher.update(iss_bytes);
-        let bytes = big_int_str_to_bytes(authenticator.get_address_seed())
-            .map_err(|_| SuiError::InvalidAddress)?;
-        // If the length is shorter than 32, pad 0s in the front.
-        let padded = match bytes.len() {
-            len if len < 32 => {
-                let mut padded = Vec::new();
-                padded.extend(vec![0; 32 - len]);
-                padded.extend(bytes);
-                Ok(padded)
-            }
-            32 => Ok(bytes),
-            _ => Err(SuiError::InvalidAddress),
-        };
-        hasher.update(padded?);
-        Ok(SuiAddress(hasher.finalize().digest))
     }
 }
 
@@ -661,21 +604,16 @@ impl From<&MultiSigPublicKey> for SuiAddress {
 }
 
 /// Sui address for [struct ZkLoginAuthenticator] is defined as the black2b hash of
-/// [zklogin_flag || iss_bytes_length || iss_bytes || address_seed in bytes] where
+/// [zklogin_flag || bcs bytes of AddressParams || address_seed in bytes] where
 /// AddressParams contains iss and aud string.
-impl TryFrom<&ZkLoginAuthenticator> for SuiAddress {
-    type Error = SuiError;
-    fn try_from(authenticator: &ZkLoginAuthenticator) -> SuiResult<Self> {
+impl From<&ZkLoginAuthenticator> for SuiAddress {
+    fn from(authenticator: &ZkLoginAuthenticator) -> Self {
         let mut hasher = DefaultHash::default();
         hasher.update([SignatureScheme::ZkLoginAuthenticator.flag()]);
-        let iss_bytes = authenticator.get_iss().as_bytes();
-        hasher.update([iss_bytes.len() as u8]);
-        hasher.update(iss_bytes);
-        hasher.update(
-            big_int_str_to_bytes(authenticator.get_address_seed())
-                .map_err(|_| SuiError::InvalidAddress)?,
-        );
-        Ok(SuiAddress(hasher.finalize().digest))
+        // unwrap is safe here
+        hasher.update(bcs::to_bytes(&authenticator.get_address_params()).unwrap());
+        hasher.update(big_int_str_to_bytes(authenticator.get_address_seed()));
+        SuiAddress(hasher.finalize().digest)
     }
 }
 
@@ -683,7 +621,7 @@ impl TryFrom<&GenericSignature> for SuiAddress {
     type Error = SuiError;
     /// Derive a SuiAddress from a serialized signature in Sui [GenericSignature].
     fn try_from(sig: &GenericSignature) -> SuiResult<Self> {
-        match sig {
+        Ok(match sig {
             GenericSignature::Signature(sig) => {
                 let scheme = sig.scheme();
                 let pub_key_bytes = sig.public_key_bytes();
@@ -692,12 +630,12 @@ impl TryFrom<&GenericSignature> for SuiAddress {
                         error: "Cannot parse pubkey".to_string(),
                     }
                 })?;
-                Ok(SuiAddress::from(&pub_key))
+                SuiAddress::from(&pub_key)
             }
-            GenericSignature::MultiSig(ms) => Ok(ms.get_pk().into()),
-            GenericSignature::MultiSigLegacy(ms) => Ok(ms.get_pk().into()),
-            GenericSignature::ZkLoginAuthenticator(zklogin) => zklogin.try_into(),
-        }
+            GenericSignature::MultiSig(ms) => ms.get_pk().into(),
+            GenericSignature::MultiSigLegacy(ms) => ms.get_pk().into(),
+            GenericSignature::ZkLoginAuthenticator(zklogin) => zklogin.into(),
+        })
     }
 }
 

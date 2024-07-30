@@ -8,7 +8,6 @@ use crate::key_value_store_metrics::KeyValueStoreMetrics;
 use async_trait::async_trait;
 use std::sync::Arc;
 use std::time::Instant;
-use sui_types::base_types::{ObjectID, SequenceNumber, VersionNumber};
 use sui_types::digests::{
     CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
 };
@@ -17,9 +16,7 @@ use sui_types::error::{SuiError, SuiResult, UserInputError};
 use sui_types::messages_checkpoint::{
     CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
 };
-use sui_types::object::Object;
 use sui_types::transaction::Transaction;
-use tracing::instrument;
 
 pub type KVStoreTransactionData = (
     Vec<Option<Transaction>>,
@@ -397,21 +394,6 @@ impl TransactionKeyValueStore {
             .deprecated_get_transaction_checkpoint(digest)
             .await
     }
-
-    pub async fn get_object(
-        &self,
-        object_id: ObjectID,
-        version: VersionNumber,
-    ) -> SuiResult<Option<Object>> {
-        self.inner.get_object(object_id, version).await
-    }
-
-    pub async fn multi_get_transaction_checkpoint(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<CheckpointSequenceNumber>>> {
-        self.inner.multi_get_transaction_checkpoint(digests).await
-    }
 }
 
 /// Immutable key/value store trait for storing/retrieving transactions, effects, and events.
@@ -439,17 +421,6 @@ pub trait TransactionKeyValueStoreTrait {
         &self,
         digest: TransactionDigest,
     ) -> SuiResult<Option<CheckpointSequenceNumber>>;
-
-    async fn get_object(
-        &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
-    ) -> SuiResult<Option<Object>>;
-
-    async fn multi_get_transaction_checkpoint(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<CheckpointSequenceNumber>>>;
 }
 
 /// A TransactionKeyValueStoreTrait that falls back to a secondary store for any key for which the
@@ -475,7 +446,6 @@ impl FallbackTransactionKVStore {
 
 #[async_trait]
 impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
-    #[instrument(level = "trace", skip_all)]
     async fn multi_get(
         &self,
         transactions: &[TransactionDigest],
@@ -514,7 +484,6 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
         Ok((res.0, res.1, res.2))
     }
 
-    #[instrument(level = "trace", skip_all)]
     async fn multi_get_checkpoints(
         &self,
         checkpoint_summaries: &[CheckpointSequenceNumber],
@@ -570,7 +539,6 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
         Ok((res.0, res.1, res.2, res.3))
     }
 
-    #[instrument(level = "trace", skip_all)]
     async fn deprecated_get_transaction_checkpoint(
         &self,
         digest: TransactionDigest,
@@ -585,45 +553,6 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
                 .deprecated_get_transaction_checkpoint(digest)
                 .await?;
         }
-        Ok(res)
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    async fn get_object(
-        &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
-    ) -> SuiResult<Option<Object>> {
-        let mut res = self.primary.get_object(object_id, version).await?;
-        if res.is_none() {
-            res = self.fallback.get_object(object_id, version).await?;
-        }
-        Ok(res)
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    async fn multi_get_transaction_checkpoint(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<CheckpointSequenceNumber>>> {
-        let mut res = self
-            .primary
-            .multi_get_transaction_checkpoint(digests)
-            .await?;
-
-        let (fallback, indices) = find_fallback(&res, digests);
-
-        if fallback.is_empty() {
-            return Ok(res);
-        }
-
-        let secondary_res = self
-            .fallback
-            .multi_get_transaction_checkpoint(&fallback)
-            .await?;
-
-        merge_res(&mut res, secondary_res, &indices);
-
         Ok(res)
     }
 }

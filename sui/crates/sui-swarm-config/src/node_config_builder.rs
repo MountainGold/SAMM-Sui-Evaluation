@@ -8,14 +8,12 @@ use fastcrypto::traits::KeyPair;
 use narwhal_config::{NetworkAdminServerParameters, PrometheusMetricsParameters};
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::time::Duration;
 use sui_config::node::{
     default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
     AuthorityKeyPairWithPath, AuthorityStorePruningConfig, DBCheckpointConfig,
     ExpensiveSafetyCheckConfig, Genesis, KeyPairWithPath, StateArchiveConfig, StateSnapshotConfig,
     DEFAULT_GRPC_CONCURRENCY_LIMIT,
 };
-use sui_config::node::{default_zklogin_oauth_providers, ConsensusProtocol};
 use sui_config::p2p::{P2pConfig, SeedPeer};
 use sui_config::{
     local_ip_utils, ConsensusConfig, NodeConfig, AUTHORITIES_DB_NAME, CONSENSUS_DB_NAME,
@@ -32,7 +30,6 @@ pub struct ValidatorConfigBuilder {
     config_directory: Option<PathBuf>,
     supported_protocol_versions: Option<SupportedProtocolVersions>,
     force_unpruned_checkpoints: bool,
-    jwk_fetch_interval: Option<Duration>,
 }
 
 impl ValidatorConfigBuilder {
@@ -57,11 +54,6 @@ impl ValidatorConfigBuilder {
 
     pub fn with_unpruned_checkpoints(mut self) -> Self {
         self.force_unpruned_checkpoints = true;
-        self
-    }
-
-    pub fn with_jwk_fetch_interval(mut self, i: Duration) -> Self {
-        self.jwk_fetch_interval = Some(i);
         self
     }
 
@@ -90,7 +82,6 @@ impl ValidatorConfigBuilder {
             max_pending_transactions: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            protocol: ConsensusProtocol::Narwhal,
             narwhal_config: narwhal_config::Parameters {
                 network_admin_server: NetworkAdminServerParameters {
                     primary_network_admin_server_port: local_ip_utils::get_available_port(
@@ -166,12 +157,6 @@ impl ValidatorConfigBuilder {
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
             enable_experimental_rest_api: true,
-            jwk_fetch_interval_seconds: self
-                .jwk_fetch_interval
-                .map(|i| i.as_secs())
-                .unwrap_or(3600),
-            zklogin_oauth_providers: default_zklogin_oauth_providers(),
-            overload_threshold_config: Default::default(),
         }
     }
 
@@ -405,10 +390,6 @@ impl FullnodeConfigBuilder {
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
             enable_experimental_rest_api: true,
-            // note: not used by fullnodes.
-            jwk_fetch_interval_seconds: 3600,
-            zklogin_oauth_providers: default_zklogin_oauth_providers(),
-            overload_threshold_config: Default::default(),
         }
     }
 }

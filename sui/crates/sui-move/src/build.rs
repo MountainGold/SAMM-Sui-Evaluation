@@ -28,9 +28,9 @@ pub struct Build {
     /// and events.
     #[clap(long, global = true)]
     pub generate_struct_layouts: bool,
-    /// If `true`, disable linters
+    /// If `true`, enable linters
     #[clap(long, global = true)]
-    pub no_lint: bool,
+    pub lint: bool,
 }
 
 impl Build {
@@ -47,7 +47,7 @@ impl Build {
             self.with_unpublished_dependencies,
             self.dump_bytecode_as_base64,
             self.generate_struct_layouts,
-            !self.no_lint,
+            self.lint,
         )
     }
 

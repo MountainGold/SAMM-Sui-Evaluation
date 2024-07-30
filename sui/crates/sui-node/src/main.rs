@@ -20,7 +20,7 @@ const GIT_REVISION: &str = {
         revision
     } else {
         let version = git_version::git_version!(
-            args = ["--always", "--abbrev=12", "--dirty", "--exclude", "*"],
+            args = ["--always", "--dirty", "--exclude", "*"],
             fallback = ""
         );
 
@@ -58,18 +58,20 @@ fn main() {
     config.supported_protocol_versions = Some(SupportedProtocolVersions::SYSTEM_DEFAULT);
 
     let runtimes = SuiRuntimes::new(&config);
-    let metrics_rt = runtimes.metrics.enter();
-    let registry_service = mysten_metrics::start_prometheus_server(config.metrics_address);
+    let registry_service = {
+        let _enter = runtimes.metrics.enter();
+        metrics::start_prometheus_server(config.metrics_address)
+    };
     let prometheus_registry = registry_service.default_registry();
 
     // Initialize logging
     let (_guard, filter_handle) = telemetry_subscribers::TelemetryConfig::new()
+        // Set a default
+        .with_sample_nth(10)
         .with_target_prefix("sui_json_rpc")
         .with_env()
         .with_prom_registry(&prometheus_registry)
         .init();
-
-    drop(metrics_rt);
 
     info!("Sui Node version: {VERSION}");
     info!(
@@ -102,15 +104,16 @@ fn main() {
     let rpc_runtime = runtimes.json_rpc.handle().clone();
 
     runtimes.sui_node.spawn(async move {
-        match sui_node::SuiNode::start_async(&config, registry_service, Some(rpc_runtime)).await {
-            Ok(sui_node) => node_once_cell_clone
-                .set(sui_node)
-                .expect("Failed to set node in AsyncOnceCell"),
-
-            Err(e) => {
-                error!("Failed to start node: {e:?}");
-                std::process::exit(1);
-            }
+        if let Err(e) = sui_node::SuiNode::start_async(
+            &config,
+            registry_service,
+            node_once_cell_clone,
+            Some(rpc_runtime),
+        )
+        .await
+        {
+            error!("Failed to start node: {e:?}");
+            std::process::exit(1)
         }
         // TODO: Do we want to provide a way for the node to gracefully shutdown?
         loop {

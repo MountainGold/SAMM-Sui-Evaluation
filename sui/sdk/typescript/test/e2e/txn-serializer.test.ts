@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { beforeAll, describe, expect, it } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 
+import { SUI_SYSTEM_STATE_OBJECT_ID } from '../../src/utils';
+
+import { SuiObjectData, SuiTransactionBlockResponse } from '../../src/client';
 import { SharedObjectRef } from '../../src/bcs';
 import { BuilderCallArg, TransactionBlock } from '../../src/builder';
 import { TransactionBlockDataBuilder } from '../../src/builder/TransactionBlockData';
-import { SuiTransactionBlockResponse } from '../../src/client';
-import { SUI_SYSTEM_STATE_OBJECT_ID } from '../../src/utils';
 import { publishPackage, setup, TestToolbox } from './utils/setup';
 
 describe('Transaction Serialization and deserialization', () => {
@@ -51,12 +52,12 @@ describe('Transaction Serialization and deserialization', () => {
 		const [{ suiAddress: validatorAddress }] = await toolbox.getActiveValidators();
 
 		const tx = new TransactionBlock();
-		const coin = coins.data[2];
+		const coin = coins[2].data as SuiObjectData;
 		tx.moveCall({
 			target: '0x3::sui_system::request_add_stake',
 			arguments: [
 				tx.object(SUI_SYSTEM_STATE_OBJECT_ID),
-				tx.object(coin.coinObjectId),
+				tx.object(coin.objectId),
 				tx.pure(validatorAddress),
 			],
 		});

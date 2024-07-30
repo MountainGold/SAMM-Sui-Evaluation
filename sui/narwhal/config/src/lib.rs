@@ -32,25 +32,6 @@ pub mod utils;
 /// The epoch number.
 pub type Epoch = u64;
 
-// Opaque bytes uniquely identifying the current chain. Analogue of the
-// type in `sui-types` crate.
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
-pub struct ChainIdentifier([u8; 32]);
-
-impl ChainIdentifier {
-    pub fn new(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub fn unknown() -> Self {
-        Self([0; 32])
-    }
-
-    pub fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-}
-
 #[derive(Error, Debug)]
 pub enum ConfigError {
     #[error("Node {0} is not in the committee")]
@@ -115,8 +96,10 @@ pub trait Export: Serialize {
 
 impl<S: Serialize> Export for S {}
 
-// TODO: This actually represents voting power (out of 10,000) and not amount staked.
-// Consider renaming to `VotingPower`.
+// TODO: the stake and voting power of a validator can be different so
+// in some places when we are actually referring to the voting power, we
+// should use a different type alias, field name, etc.
+// Also, consider unify this with `StakeUnit` on Sui side.
 pub type Stake = u64;
 pub type WorkerId = u32;
 
@@ -277,28 +260,6 @@ pub struct AnemoParameters {
 }
 
 impl AnemoParameters {
-    // By default, at most 10 certificates can be sent concurrently to a peer.
-    pub fn send_certificate_rate_limit(&self) -> u32 {
-        self.send_certificate_rate_limit
-            .unwrap_or(NonZeroU32::new(20).unwrap())
-            .get()
-    }
-
-    // By default, at most 100 batches can be broadcasted concurrently.
-    pub fn report_batch_rate_limit(&self) -> u32 {
-        self.report_batch_rate_limit
-            .unwrap_or(NonZeroU32::new(200).unwrap())
-            .get()
-    }
-
-    // As of 11/02/2023, when one worker is actively fetching, each peer receives
-    // 20~30 requests per second.
-    pub fn request_batches_rate_limit(&self) -> u32 {
-        self.request_batches_rate_limit
-            .unwrap_or(NonZeroU32::new(100).unwrap())
-            .get()
-    }
-
     pub fn excessive_message_size(&self) -> usize {
         const EXCESSIVE_MESSAGE_SIZE: usize = 8 << 20;
 

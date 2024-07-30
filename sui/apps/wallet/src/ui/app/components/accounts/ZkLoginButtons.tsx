@@ -1,29 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-	zkLoginProviderDataMap,
-	type ZkLoginProvider,
-} from '_src/background/accounts/zklogin/providers';
-import { ampli, type ClickedSocialSignInButtonProperties } from '_src/shared/analytics/ampli';
 import { cx } from 'class-variance-authority';
 import { useState } from 'react';
-
 import { useCountAccountsByType } from '../../hooks/useCountAccountByType';
 import { SocialButton } from '../../shared/SocialButton';
+import { zkProviderDataMap, type ZkProvider } from '_src/background/accounts/zk/providers';
+import { ampli, type ClickedSocialSignInButtonProperties } from '_src/shared/analytics/ampli';
 
-const zkLoginProviders = Object.entries(zkLoginProviderDataMap)
-	.filter(([_, { hidden }]) => !hidden)
-	.map(([provider, { enabled }]) => ({
-		provider: provider as ZkLoginProvider,
-		enabled,
-		tooltip: !enabled ? 'Coming soon!' : undefined,
-	}));
+const zkLoginProviders = Object.entries(zkProviderDataMap).map(([provider, { enabled }]) => ({
+	provider: provider as ZkProvider,
+	enabled,
+	tooltip: !enabled ? 'Coming soon!' : undefined,
+}));
 
-const providerToAmpli: Record<
-	ZkLoginProvider,
-	ClickedSocialSignInButtonProperties['signInProvider']
-> = {
+const providerToAmpli: Record<ZkProvider, ClickedSocialSignInButtonProperties['signInProvider']> = {
 	google: 'Google',
 	twitch: 'Twitch',
 	facebook: 'Facebook',
@@ -33,9 +24,9 @@ export type ZkLoginButtonsProps = {
 	layout: 'column' | 'row';
 	showLabel?: boolean;
 	buttonsDisabled?: boolean;
-	onButtonClick?: (provider: ZkLoginProvider) => Promise<void> | void;
+	onButtonClick?: (provider: ZkProvider) => Promise<void> | void;
 	sourceFlow: string;
-	forcedZkLoginProvider?: ZkLoginProvider | null;
+	forcedZkLoginProvider?: ZkProvider | null;
 };
 
 export function ZkLoginButtons({
@@ -46,10 +37,8 @@ export function ZkLoginButtons({
 	sourceFlow,
 	forcedZkLoginProvider,
 }: ZkLoginButtonsProps) {
-	const [createInProgressProvider, setCreateInProgressProvider] = useState<ZkLoginProvider | null>(
-		null,
-	);
-	const { data: accountsTotalByType, isPending } = useCountAccountsByType();
+	const [createInProgressProvider, setCreateInProgressProvider] = useState<ZkProvider | null>(null);
+	const { data: accountsTotalByType, isLoading } = useCountAccountsByType();
 	return (
 		<div
 			className={cx('flex w-full', {
@@ -60,7 +49,7 @@ export function ZkLoginButtons({
 			{zkLoginProviders.map(({ provider, enabled, tooltip }) => (
 				<div key={provider} className="flex-1">
 					<SocialButton
-						title={accountsTotalByType?.zkLogin?.extra?.[provider] ? 'Already signed-in' : tooltip}
+						title={accountsTotalByType?.zk?.extra?.[provider] ? 'Already signed-in' : tooltip}
 						provider={provider}
 						onClick={async () => {
 							ampli.clickedSocialSignInButton({
@@ -80,8 +69,8 @@ export function ZkLoginButtons({
 							!enabled ||
 							buttonsDisabled ||
 							createInProgressProvider !== null ||
-							isPending ||
-							!!accountsTotalByType?.zkLogin?.extra?.[provider] ||
+							isLoading ||
+							!!accountsTotalByType?.zk?.extra?.[provider] ||
 							!!forcedZkLoginProvider
 						}
 						loading={createInProgressProvider === provider || forcedZkLoginProvider === provider}

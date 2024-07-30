@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-#[allow(unused_use)]
 module deepbook::clob {
     use std::option;
     use std::type_name::{Self, TypeName};
@@ -24,7 +23,7 @@ module deepbook::clob {
 
     // <<<<<<<<<<<<<<<<<<<<<<<< Error codes <<<<<<<<<<<<<<<<<<<<<<<<
     const DEPRECATED: u64 = 0;
-    #[test_only]
+    const ENotImplemented: u64 = 1;
     const EInvalidFeeRateRebateRate: u64 = 2;
     const EInvalidOrderId: u64 = 3;
     const EUnauthorizedCancel: u64 = 4;
@@ -38,13 +37,13 @@ module deepbook::clob {
     const EOrderCannotBeFullyPassive: u64 = 10;
     const EInvalidTickPrice: u64 = 11;
     const EInvalidUser: u64 = 12;
-    #[test_only]
     const ENotEqual: u64 = 13;
     const EInvalidRestriction: u64 = 14;
-    #[test_only]
+    const ELevelNotEmpty: u64 = 15;
     const EInvalidPair: u64 = 16;
+    const EInvalidBaseBalance: u64 = 17;
+    const EInvalidFee: u64 = 18;
     const EInvalidExpireTimestamp: u64 = 19;
-    #[test_only]
     const EInvalidTickSizeLotSize: u64 = 20;
 
     // <<<<<<<<<<<<<<<<<<<<<<<< Error codes <<<<<<<<<<<<<<<<<<<<<<<<
@@ -52,6 +51,7 @@ module deepbook::clob {
     // <<<<<<<<<<<<<<<<<<<<<<<< Constants <<<<<<<<<<<<<<<<<<<<<<<<
     const FLOAT_SCALING: u64 = 1_000_000_000;
     // Restrictions on limit orders.
+    const N_RESTRICTIONS: u8 = 4;
     const NO_RESTRICTION: u8 = 0;
     // Mandates that whatever amount of an order that can be executed in the current transaction, be filled and then the rest of the order canceled.
     const IMMEDIATE_OR_CANCEL: u8 = 1;
@@ -59,21 +59,19 @@ module deepbook::clob {
     const FILL_OR_KILL: u8 = 2;
     // Mandates that the entire order be passive. Otherwise, cancel the order.
     const POST_OR_ABORT: u8 = 3;
-    #[test_only]
     const MIN_BID_ORDER_ID: u64 = 1;
     const MIN_ASK_ORDER_ID: u64 = 1 << 63;
     const MIN_PRICE: u64 = 0;
     const MAX_PRICE: u64 = ((1u128 << 64 - 1) as u64);
-    #[test_only]
     const TIMESTAMP_INF: u64 = ((1u128 << 64 - 1) as u64);
-    #[test_only]
+    const REFERENCE_TAKER_FEE_RATE: u64 = 5_000_000;
+    const REFERENCE_MAKER_REBATE_RATE: u64 = 2_500_000;
     const FEE_AMOUNT_FOR_CREATE_POOL: u64 = 100 * 1_000_000_000; // 100 SUI
 
     // <<<<<<<<<<<<<<<<<<<<<<<< Constants <<<<<<<<<<<<<<<<<<<<<<<<
 
     // <<<<<<<<<<<<<<<<<<<<<<<< Events <<<<<<<<<<<<<<<<<<<<<<<<
 
-    #[allow(unused_field)]
     /// Emitted when a new pool is created
     struct PoolCreated has copy, store, drop {
         /// object ID of the newly created pool
@@ -156,7 +154,6 @@ module deepbook::clob {
         // other price level info
     }
 
-    #[allow(unused_field)]
     struct Pool<phantom BaseAsset, phantom QuoteAsset> has key {
         // The key to the following Critbit Tree are order prices.
         id: UID,
@@ -202,7 +199,6 @@ module deepbook::clob {
         abort DEPRECATED
     }
 
-    #[test_only]
     fun create_pool_<BaseAsset, QuoteAsset>(
         taker_fee_rate: u64,
         maker_rebate_rate: u64,
@@ -250,7 +246,6 @@ module deepbook::clob {
         })
     }
 
-    #[allow(unused_type_parameter)]
     public fun create_pool<BaseAsset, QuoteAsset>(
         _tick_size: u64,
         _lot_size: u64,
@@ -1061,7 +1056,7 @@ module deepbook::clob {
             if (is_bid) { &pool.bids } else { &pool.asks },
             tick_price);
         assert!(tick_exists, EInvalidOrderId);
-        let order = remove_order(
+        let order = remove_order<BaseAsset, QuoteAsset>(
             if (is_bid) { &mut pool.bids } else { &mut pool.asks },
             usr_open_orders,
             tick_index,
@@ -1077,7 +1072,7 @@ module deepbook::clob {
         emit_order_canceled<BaseAsset, QuoteAsset>(*object::uid_as_inner(&pool.id), &order);
     }
 
-    fun remove_order(
+    fun remove_order<BaseAsset, QuoteAsset>(
         open_orders: &mut CritbitTree<TickLevel>,
         usr_open_orders: &mut LinkedTable<u64, u64>,
         tick_index: u64,
@@ -1112,7 +1107,7 @@ module deepbook::clob {
                 if (is_bid) { &mut pool.bids }
                 else { &mut pool.asks };
             let (_, tick_index) = critbit::find_leaf(open_orders, order_price);
-            let order = remove_order(
+            let order = remove_order<BaseAsset, QuoteAsset>(
                 open_orders,
                 usr_open_order_ids,
                 tick_index,
@@ -1169,7 +1164,7 @@ module deepbook::clob {
                 assert!(tick_exists, EInvalidTickPrice);
                 tick_index = new_tick_index;
             };
-            let order = remove_order(
+            let order = remove_order<BaseAsset, QuoteAsset>(
                 if (is_bid) { &mut pool.bids } else { &mut pool.asks },
                 usr_open_orders,
                 tick_index,
@@ -1255,7 +1250,7 @@ module deepbook::clob {
         let depth_vec = vector::empty<u64>();
         if (price_low == 0) { return (price_vec, depth_vec) };
         while (price_low <= price_high) {
-            let depth = get_level2_book_status(
+            let depth = get_level2_book_status<BaseAsset, QuoteAsset>(
                 &pool.bids,
                 price_low,
                 clock::timestamp_ms(clock)
@@ -1289,7 +1284,7 @@ module deepbook::clob {
         let depth_vec = vector::empty<u64>();
         if (price_low == 0) { return (price_vec, depth_vec) };
         while (price_low <= price_high) {
-            let depth = get_level2_book_status(
+            let depth = get_level2_book_status<BaseAsset, QuoteAsset>(
                 &pool.asks,
                 price_low,
                 clock::timestamp_ms(clock)
@@ -1304,7 +1299,7 @@ module deepbook::clob {
     }
 
     /// internal func to retrive single depth of a tick price
-    fun get_level2_book_status(
+    fun get_level2_book_status<BaseAsset, QuoteAsset>(
         open_orders: &CritbitTree<TickLevel>,
         price: u64,
         time_stamp: u64
@@ -1650,7 +1645,7 @@ module deepbook::clob {
     ): Order {
         let order;
         if (is_bid) {
-            order = remove_order(
+            order = remove_order<BaseAsset, QuoteAsset>(
                 &mut pool.bids,
                 borrow_mut(&mut pool.usr_open_orders, owner),
                 tick_index,
@@ -1658,7 +1653,7 @@ module deepbook::clob {
                 owner
             )
         } else {
-            order = remove_order(
+            order = remove_order<BaseAsset, QuoteAsset>(
                 &mut pool.asks,
                 borrow_mut(&mut pool.usr_open_orders, owner),
                 tick_index,
@@ -1670,7 +1665,6 @@ module deepbook::clob {
     }
 
     // === Deprecated ===
-    #[allow(unused_field)]
     /// Deprecated since v1.0.0, use `OrderPlacedV2` instead.
     struct OrderPlaced<phantom BaseAsset, phantom QuoteAsset> has copy, store, drop {
         /// object ID of the pool the order was placed on
@@ -1684,7 +1678,6 @@ module deepbook::clob {
         price: u64,
     }
 
-    #[allow(unused_field)]
     /// Deprecated since v1.0.0, use `OrderFilledV2` instead.
     struct OrderFilled<phantom BaseAsset, phantom QuoteAsset> has copy, store, drop {
         /// object ID of the pool the order was placed on

@@ -2,23 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { fromB64, toB64 } from '@mysten/bcs';
-import { blake2b } from '@noble/hashes/blake2b';
-import { bytesToHex } from '@noble/hashes/utils';
-
-import { bcs } from '../bcs/index.js';
-import { Ed25519PublicKey } from '../keypairs/ed25519/publickey.js';
-import { Secp256k1PublicKey } from '../keypairs/secp256k1/publickey.js';
-import { Secp256r1PublicKey } from '../keypairs/secp256r1/publickey.js';
-import { MAX_SIGNER_IN_MULTISIG, MIN_SIGNER_IN_MULTISIG } from '../multisig/publickey.js';
-import { normalizeSuiAddress } from '../utils/sui-types.js';
-import type { PublicKey } from './publickey.js';
-import { SIGNATURE_SCHEME_TO_FLAG } from './signature-scheme.js';
-import type { SignatureScheme } from './signature-scheme.js';
-import type { SerializedSignature } from './signature.js';
+import type { SerializedSignature, SignatureScheme } from './signature.js';
+import { SIGNATURE_SCHEME_TO_FLAG } from './signature.js';
 import type { SignaturePubkeyPair } from './utils.js';
 // eslint-disable-next-line import/no-cycle
 import { toSingleSignaturePubkeyPair } from './utils.js';
+import type { PublicKey } from './publickey.js';
+import { blake2b } from '@noble/hashes/blake2b';
+import { bytesToHex } from '@noble/hashes/utils';
 
+import { Ed25519PublicKey } from '../keypairs/ed25519/publickey.js';
+import { Secp256k1PublicKey } from '../keypairs/secp256k1/publickey.js';
+import { Secp256r1PublicKey } from '../keypairs/secp256r1/publickey.js';
+import { builder } from '../builder/bcs.js';
+import { normalizeSuiAddress } from '../utils/sui-types.js';
+import { MAX_SIGNER_IN_MULTISIG, MIN_SIGNER_IN_MULTISIG } from '../multisig/publickey.js';
 export { MAX_SIGNER_IN_MULTISIG, MIN_SIGNER_IN_MULTISIG } from '../multisig/publickey.js';
 
 export type PubkeyWeightPair = {
@@ -140,7 +138,7 @@ export function combinePartialSigs(
 		multisig_pk,
 	};
 
-	const bytes = bcs.MultiSig.serialize(multisig).toBytes();
+	const bytes = builder.ser('MultiSig', multisig).toBytes();
 	let tmp = new Uint8Array(bytes.length + 1);
 	tmp.set([SIGNATURE_SCHEME_TO_FLAG['MultiSig']]);
 	tmp.set(bytes, 1);
@@ -153,8 +151,7 @@ export function decodeMultiSig(signature: string): SignaturePubkeyPair[] {
 	if (parsed.length < 1 || parsed[0] !== SIGNATURE_SCHEME_TO_FLAG['MultiSig']) {
 		throw new Error('Invalid MultiSig flag');
 	}
-
-	const multisig: MultiSig = bcs.MultiSig.parse(parsed.slice(1));
+	const multisig: MultiSig = builder.de('MultiSig', parsed.slice(1));
 	let res: SignaturePubkeyPair[] = new Array(multisig.sigs.length);
 	for (let i = 0; i < multisig.sigs.length; i++) {
 		let s: CompressedSignature = multisig.sigs[i];
@@ -164,10 +161,6 @@ export function decodeMultiSig(signature: string): SignaturePubkeyPair[] {
 
 		if (scheme === 'MultiSig') {
 			throw new Error('MultiSig is not supported inside MultiSig');
-		}
-
-		if (scheme === 'ZkLogin') {
-			throw new Error('ZkLogin is not supported inside MultiSig');
 		}
 
 		const SIGNATURE_SCHEME_TO_PUBLIC_KEY = {
@@ -189,7 +182,7 @@ export function decodeMultiSig(signature: string): SignaturePubkeyPair[] {
 }
 
 function toPkWeightPair(pair: PubkeyWeightPair): PubkeyEnumWeightPair {
-	let pk_bytes = Array.from(pair.pubKey.toRawBytes().map((x) => Number(x)));
+	let pk_bytes = Array.from(pair.pubKey.toBytes().map((x) => Number(x)));
 	switch (pair.pubKey.flag()) {
 		case SIGNATURE_SCHEME_TO_FLAG['Secp256k1']:
 			return {

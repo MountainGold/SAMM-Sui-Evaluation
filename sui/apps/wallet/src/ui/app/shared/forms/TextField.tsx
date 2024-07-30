@@ -1,11 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { forwardRef, type ComponentProps, type ReactNode } from 'react';
-
+import { type ComponentProps, type ReactNode, forwardRef } from 'react';
+import FormField from './FormField';
 import { Input } from './controls/Input';
 import { PasswordInput } from './controls/PasswordInput';
-import FormField from './FormField';
 
 type TextFieldProps = {
 	name: string;

@@ -331,18 +331,6 @@ where
                 debug!(?tx_digest, ?errors, "Retryable transaction error");
                 Err(None)
             }
-
-            Err(
-                AggregatorProcessTransactionError::TxAlreadyFinalizedWithDifferentUserSignatures,
-            ) => {
-                debug!(
-                    ?tx_digest,
-                    "Transaction is already finalized with different user signatures"
-                );
-                Err(Some(
-                    QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures,
-                ))
-            }
         }
     }
 
@@ -411,7 +399,7 @@ where
         let auth_agg = self.validators.load();
         let _cert_guard = GaugeGuard::acquire(&auth_agg.metrics.inflight_certificates);
         let tx_digest = *certificate.digest();
-        let (effects, events) = auth_agg
+        let (effects, events, objects) = auth_agg
             .process_certificate(certificate.clone())
             .instrument(tracing::debug_span!("aggregator_process_cert", ?tx_digest))
             .await
@@ -439,6 +427,7 @@ where
         let response = QuorumDriverResponse {
             effects_cert: effects,
             events,
+            objects,
         };
 
         Ok(response)
@@ -698,6 +687,7 @@ where
                     let response = QuorumDriverResponse {
                         effects_cert,
                         events,
+                        objects: vec![],
                     };
                     quorum_driver.notify(&transaction, &Ok(response), old_retry_times + 1);
                     return;

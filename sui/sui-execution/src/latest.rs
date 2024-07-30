@@ -17,11 +17,10 @@ use sui_types::{
     gas::SuiGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
+    transaction::{InputObjects, ProgrammableTransaction, TransactionKind},
     type_resolver::LayoutResolver,
 };
 
-use move_bytecode_verifier_latest::meter::Scope;
 use move_vm_runtime_latest::move_vm::MoveVM;
 use sui_adapter_latest::adapter::{
     default_verifier_config, new_move_vm, run_metered_move_bytecode_verifier,
@@ -36,7 +35,6 @@ use sui_verifier_latest::meter::SuiVerifierMeter;
 
 use crate::executor;
 use crate::verifier;
-use crate::verifier::{VerifierMeteredValues, VerifierOverrides};
 
 pub(crate) struct Executor(Arc<MoveVM>);
 
@@ -49,12 +47,13 @@ pub(crate) struct Verifier<'m> {
 impl Executor {
     pub(crate) fn new(
         protocol_config: &ProtocolConfig,
-        _paranoid_checks: bool,
+        paranoid_type_checks: bool,
         silent: bool,
     ) -> Result<Self, SuiError> {
         Ok(Executor(Arc::new(new_move_vm(
             all_natives(silent),
             protocol_config,
+            paranoid_type_checks,
         )?)))
     }
 }
@@ -76,16 +75,16 @@ impl<'m> Verifier<'m> {
 }
 
 impl executor::Executor for Executor {
-    fn execute_transaction_to_effects(
+    fn execute_transaction_to_effects<'backing>(
         &self,
-        store: &dyn BackingStore,
+        store: Arc<dyn BackingStore + Send + Sync + 'backing>,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
-        input_objects: CheckedInputObjects,
+        input_objects: InputObjects,
         gas_coins: Vec<ObjectRef>,
         gas_status: SuiGasStatus,
         transaction_kind: TransactionKind,
@@ -116,14 +115,14 @@ impl executor::Executor for Executor {
 
     fn dev_inspect_transaction(
         &self,
-        store: &dyn BackingStore,
+        store: Arc<dyn BackingStore + Send + Sync>,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
-        input_objects: CheckedInputObjects,
+        input_objects: InputObjects,
         gas_coins: Vec<ObjectRef>,
         gas_status: SuiGasStatus,
         transaction_kind: TransactionKind,
@@ -154,11 +153,11 @@ impl executor::Executor for Executor {
 
     fn update_genesis_state(
         &self,
-        store: &dyn BackingStore,
+        store: Arc<dyn BackingStore + Send + Sync>,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
         tx_context: &mut TxContext,
-        input_objects: CheckedInputObjects,
+        input_objects: InputObjects,
         pt: ProgrammableTransaction,
     ) -> Result<InnerTemporaryStore, ExecutionError> {
         execute_genesis_state_update(
@@ -187,27 +186,5 @@ impl<'m> verifier::Verifier for Verifier<'m> {
         modules: &[CompiledModule],
     ) -> SuiResult<()> {
         run_metered_move_bytecode_verifier(modules, &self.config, &mut self.meter, self.metrics)
-    }
-
-    fn meter_compiled_modules_with_overrides(
-        &mut self,
-        modules: &[CompiledModule],
-        _protocol_config: &ProtocolConfig,
-        config_overrides: &VerifierOverrides,
-    ) -> SuiResult<VerifierMeteredValues> {
-        let mut config = self.config.clone();
-        let max_per_fun_meter_current = config.max_per_fun_meter_units;
-        let max_per_mod_meter_current = config.max_per_mod_meter_units;
-        config.max_per_fun_meter_units = config_overrides.max_per_fun_meter_units;
-        config.max_per_mod_meter_units = config_overrides.max_per_mod_meter_units;
-        run_metered_move_bytecode_verifier(modules, &config, &mut self.meter, self.metrics)?;
-        let fun_meter_units_result = self.meter.get_usage(Scope::Function);
-        let mod_meter_units_result = self.meter.get_usage(Scope::Function);
-        Ok(VerifierMeteredValues::new(
-            max_per_fun_meter_current,
-            max_per_mod_meter_current,
-            fun_meter_units_result,
-            mod_meter_units_result,
-        ))
     }
 }

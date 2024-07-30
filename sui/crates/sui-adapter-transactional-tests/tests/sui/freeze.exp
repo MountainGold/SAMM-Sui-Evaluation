@@ -18,7 +18,7 @@ mutated: object(0,0), object(2,0)
 gas summary: computation_cost: 1000000, storage_cost: 2386400,  storage_rebate: 2362536, non_refundable_storage_fee: 23864
 
 task 4 'run'. lines 76-76:
-Error: Transaction Effects Status: Invalid command argument at 0. Immutable objects cannot be passed by-value.
+Error: Transaction Effects Status: Invalid command argument at 0. Immutable and shared objects cannot be passed by-value.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidObjectByValue }, source: None, command: Some(0) } }
 
 task 5 'run'. lines 78-78:

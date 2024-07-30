@@ -16,7 +16,6 @@ use move_core_types::language_storage::{ModuleId, StructTag, TypeTag};
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::BTreeMap;
-use sui_types::execution::DynamicallyLoadedObjectMetadata;
 use tokio::sync::OwnedMutexGuard;
 
 use crate::mutex_table::MutexTable;
@@ -356,7 +355,7 @@ impl IndexStore {
                         obj_id, input_coins, digest
                     )
                 });
-                let map = balance_changes.entry(*owner).or_default();
+                let map = balance_changes.entry(*owner).or_insert(HashMap::new());
                 let entry = map.entry(coin_type_tag.clone()).or_insert(TotalBalance {
                     num_coins: 0,
                     balance: 0
@@ -385,7 +384,7 @@ impl IndexStore {
         .iter()
         .filter_map(|((owner, obj_id), obj_info)| {
             // If it's in written_coins, then it's not a coin. Skip it.
-            let obj = written_coins.get(obj_id)?;
+            let (_obj_ref, obj, _write_kind) = written_coins.get(obj_id)?;
             let coin_type_tag = obj.coin_type_maybe().unwrap_or_else(|| {
                 panic!(
                     "object_id: {:?} in written_coins is not a coin type, written_coins: {:?}, tx_digest: {:?}",
@@ -398,7 +397,7 @@ impl IndexStore {
                     obj_id, written_coins, digest
                 )
             });
-            let map = balance_changes.entry(*owner).or_default();
+            let map = balance_changes.entry(*owner).or_insert(HashMap::new());
             let entry = map.entry(coin_type_tag.clone()).or_insert(TotalBalance {
                 num_coins: 0,
                 balance: 0
@@ -460,7 +459,7 @@ impl IndexStore {
         digest: &TransactionDigest,
         timestamp_ms: u64,
         tx_coins: Option<TxCoins>,
-        loaded_child_objects: &BTreeMap<ObjectID, DynamicallyLoadedObjectMetadata>,
+        loaded_child_objects: &BTreeMap<ObjectID, SequenceNumber>,
     ) -> SuiResult<u64> {
         let sequence = self.next_sequence_number.fetch_add(1, Ordering::SeqCst);
         let mut batch = self.tables.transactions_from_addr.batch();
@@ -604,10 +603,7 @@ impl IndexStore {
         )?;
 
         // Loaded child objects table
-        let loaded_child_objects: Vec<_> = loaded_child_objects
-            .iter()
-            .map(|(oid, meta)| (*oid, meta.version))
-            .collect();
+        let loaded_child_objects: Vec<_> = loaded_child_objects.clone().into_iter().collect();
         batch.insert_batch(
             &self.tables.loaded_child_object_versions,
             std::iter::once((*digest, loaded_child_objects)),
@@ -1589,13 +1585,13 @@ mod tests {
     use prometheus::Registry;
     use std::collections::BTreeMap;
     use std::env::temp_dir;
-    use std::sync::Arc;
     use sui_types::base_types::{ObjectInfo, ObjectType, SuiAddress};
     use sui_types::digests::TransactionDigest;
     use sui_types::effects::TransactionEvents;
     use sui_types::gas_coin::GAS;
     use sui_types::object;
     use sui_types::object::Owner;
+    use sui_types::storage::WriteKind;
 
     #[tokio::test]
     async fn test_index_cache() -> anyhow::Result<()> {
@@ -1625,8 +1621,11 @@ mod tests {
                     previous_transaction: object.previous_transaction,
                 },
             ));
-            object_map.insert(object.id(), Arc::new(object.clone()));
-            written_objects.insert(object.data.id(), object);
+            object_map.insert(object.id(), object.clone());
+            written_objects.insert(
+                object.data.id(),
+                (object.compute_object_reference(), object, WriteKind::Mutate),
+            );
         }
         let object_index_changes = ObjectIndexChanges {
             deleted_owners: vec![],
@@ -1672,7 +1671,14 @@ mod tests {
         let mut deleted_objects = vec![];
         for (id, object) in object_map.iter().take(3) {
             deleted_objects.push((address, *id));
-            written_objects.insert(object.data.id(), (**object).clone());
+            written_objects.insert(
+                object.data.id(),
+                (
+                    object.compute_object_reference(),
+                    object.clone(),
+                    WriteKind::Create,
+                ),
+            );
         }
         let object_index_changes = ObjectIndexChanges {
             deleted_owners: deleted_objects,

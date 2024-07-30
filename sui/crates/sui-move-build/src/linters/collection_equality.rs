@@ -10,9 +10,10 @@ use move_compiler::{
     diagnostics::codes::{custom, DiagnosticInfo, Severity},
     naming::ast as N,
     parser::ast as P,
-    shared::{program_info::TypingProgramInfo, CompilationEnv, Identifier},
+    shared::{CompilationEnv, Identifier},
     typing::{
         ast as T,
+        core::TypingProgramInfo,
         visitor::{TypingVisitorConstructor, TypingVisitorContext},
     },
 };
@@ -63,7 +64,7 @@ impl TypingVisitorConstructor for CollectionEqualityVisitor {
     fn context<'a>(
         env: &'a mut CompilationEnv,
         _program_info: &'a TypingProgramInfo,
-        _program: &T::Program_,
+        _program: &T::Program,
     ) -> Self::Context<'a> {
         Context { env }
     }

@@ -57,7 +57,7 @@ fn gen_ckpts(
                     // AuthoritySignInfos are interchangeable).
                     i as u64,
                     0,
-                    &CheckpointContents::new_with_digests_only_for_tests(vec![]),
+                    &CheckpointContents::new_with_causally_ordered_transactions(vec![]),
                     None,
                     GasCostSummary::default(),
                     None,
@@ -119,7 +119,6 @@ async fn test_async_verifier() {
         metrics,
         vec![],
         ZkLoginEnv::Test,
-        true,
     ));
 
     let tasks: Vec<_> = (0..32)

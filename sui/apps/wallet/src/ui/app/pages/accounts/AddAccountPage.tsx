@@ -1,20 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
-import { Text } from '_app/shared/text';
-import Overlay from '_components/overlay';
-import {
-	zkLoginProviderDataMap,
-	type ZkLoginProvider,
-} from '_src/background/accounts/zklogin/providers';
-import { ampli } from '_src/shared/analytics/ampli';
 import { LedgerLogo17 as LedgerLogo } from '@mysten/icons';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useState, type ReactNode, useEffect, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Browser from 'webextension-polyfill';
-
 import { useAccountsFormContext } from '../../components/accounts/AccountsFormContext';
 import { ZkLoginButtons } from '../../components/accounts/ZkLoginButtons';
 import { ConnectLedgerModal } from '../../components/ledger/ConnectLedgerModal';
@@ -23,6 +14,11 @@ import { useAppSelector } from '../../hooks';
 import { useCountAccountsByType } from '../../hooks/useCountAccountByType';
 import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
 import { AppType } from '../../redux/slices/app/AppType';
+import { Button } from '_app/shared/ButtonUI';
+import { Text } from '_app/shared/text';
+import Overlay from '_components/overlay';
+import { type ZkProvider, zkProviderDataMap } from '_src/background/accounts/zk/providers';
+import { ampli } from '_src/shared/analytics/ampli';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
 	const currentURL = new URL(window.location.href);
@@ -48,11 +44,11 @@ export function AddAccountPage() {
 	const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
 	const createAccountsMutation = useCreateAccountsMutation();
 	const createZkLoginAccount = useCallback(
-		async (provider: ZkLoginProvider) => {
-			await setAccountsFormValues({ type: 'zkLogin', provider });
+		async (provider: ZkProvider) => {
+			await setAccountsFormValues({ type: 'zk', provider });
 			await createAccountsMutation.mutateAsync(
 				{
-					type: 'zkLogin',
+					type: 'zk',
 				},
 				{
 					onSuccess: () => {
@@ -66,21 +62,17 @@ export function AddAccountPage() {
 		},
 		[setAccountsFormValues, createAccountsMutation, navigate],
 	);
-	const [forcedZkLoginProvider, setForcedZkLoginProvider] = useState<ZkLoginProvider | null>(null);
+	const [forcedZkLoginProvider, setForcedZkLoginProvider] = useState<ZkProvider | null>(null);
 	const forceZkLoginWithProviderRef = useRef(searchParams.get('forceZkLoginProvider'));
 	const forcedLoginHandledRef = useRef(false);
-	const { data: accountsTotalByType, isPending: isAccountsCountLoading } = useCountAccountsByType();
+	const { data: accountsTotalByType, isLoading: isAccountsCountLoading } = useCountAccountsByType();
 	useEffect(() => {
 		if (isAccountsCountLoading) {
 			return;
 		}
-		const zkLoginProvider = forceZkLoginWithProviderRef.current as ZkLoginProvider;
-		if (
-			zkLoginProvider &&
-			zkLoginProviderDataMap[zkLoginProvider] &&
-			!forcedLoginHandledRef.current
-		) {
-			const totalProviderAccounts = accountsTotalByType?.zkLogin?.extra?.[zkLoginProvider] || 0;
+		const zkLoginProvider = forceZkLoginWithProviderRef.current as ZkProvider;
+		if (zkLoginProvider && zkProviderDataMap[zkLoginProvider] && !forcedLoginHandledRef.current) {
+			const totalProviderAccounts = accountsTotalByType?.zk?.extra?.[zkLoginProvider] || 0;
 			if (totalProviderAccounts === 0) {
 				setForcedZkLoginProvider(zkLoginProvider);
 				createZkLoginAccount(zkLoginProvider).finally(() => setForcedZkLoginProvider(null));
@@ -122,7 +114,7 @@ export function AddAccountPage() {
 						variant="outline"
 						size="tall"
 						text="Set up Ledger"
-						before={<LedgerLogo className="text-gray-90 w-4 h-4" />}
+						before={<LedgerLogo className="text-gray-90" width={16} height={16} />}
 						onClick={async () => {
 							ampli.openedConnectLedgerFlow({ sourceFlow });
 							if (isPopup) {
@@ -132,7 +124,7 @@ export function AddAccountPage() {
 								setConnectLedgerModalOpen(true);
 							}
 						}}
-						disabled={createAccountsMutation.isPending}
+						disabled={createAccountsMutation.isLoading}
 					/>
 				</div>
 				<Section title="Create New">
@@ -145,7 +137,7 @@ export function AddAccountPage() {
 							setAccountsFormValues({ type: 'new-mnemonic' });
 							ampli.clickedCreateNewAccount({ sourceFlow });
 						}}
-						disabled={createAccountsMutation.isPending}
+						disabled={createAccountsMutation.isLoading}
 					/>
 				</Section>
 				<Section title="Import Existing Accounts">
@@ -157,7 +149,7 @@ export function AddAccountPage() {
 						onClick={() => {
 							ampli.clickedImportPassphrase({ sourceFlow });
 						}}
-						disabled={createAccountsMutation.isPending}
+						disabled={createAccountsMutation.isLoading}
 					/>
 					<Button
 						variant="outline"
@@ -167,7 +159,7 @@ export function AddAccountPage() {
 						onClick={() => {
 							ampli.clickedImportPrivateKey({ sourceFlow });
 						}}
-						disabled={createAccountsMutation.isPending}
+						disabled={createAccountsMutation.isLoading}
 					/>
 				</Section>
 			</div>

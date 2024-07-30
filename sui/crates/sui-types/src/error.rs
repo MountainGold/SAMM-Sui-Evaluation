@@ -17,7 +17,7 @@ use std::{collections::BTreeMap, fmt::Debug};
 use strum_macros::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
 use tonic::Status;
-use typed_store_error::TypedStoreError;
+use typed_store::rocks::TypedStoreError;
 
 pub const TRANSACTION_NOT_FOUND_MSG_PREFIX: &str = "Could not find the referenced transaction";
 pub const TRANSACTIONS_NOT_FOUND_MSG_PREFIX: &str = "Could not find the referenced transactions";
@@ -245,9 +245,6 @@ pub enum UserInputError {
         max_publish_commands: u64,
         publish_count: u64,
     },
-
-    #[error("Immutable parameter provided, mutable parameter expected.")]
-    MutableParameterExpected { object_id: ObjectID },
 }
 
 #[derive(
@@ -316,21 +313,11 @@ pub enum SuiError {
         threshold: usize,
     },
 
-    #[error("Input {object_id} has a transaction {txn_age_sec} seconds old pending, above threshold of {threshold} seconds")]
-    TooOldTransactionPendingOnObject {
-        object_id: ObjectID,
-        txn_age_sec: u64,
-        threshold: u64,
-    },
-
     // Signature verification
     #[error("Signature is not valid: {}", error)]
     InvalidSignature { error: String },
-    #[error("Required Signature from {expected} is absent {:?}.", actual)]
-    SignerSignatureAbsent {
-        expected: String,
-        actual: Vec<String>,
-    },
+    #[error("Required Signature from {signer} is absent.")]
+    SignerSignatureAbsent { signer: String },
     #[error("Expect {actual} signer signatures but got {expected}.")]
     SignerSignatureNumberMismatch { expected: usize, actual: usize },
     #[error("Value was not signed by the correct sender: {}", error)]
@@ -375,15 +362,6 @@ pub enum SuiError {
     QuorumFailedToGetEffectsQuorumWhenProcessingTransaction {
         effects_map: BTreeMap<TransactionEffectsDigest, (Vec<AuthorityName>, StakeUnit)>,
     },
-    #[error(
-        "Failed to verify Tx certificate with executed effects, error: {error:?}, validator: {validator_name:?}"
-    )]
-    FailedToVerifyTxCertWithExecutedEffects {
-        validator_name: AuthorityName,
-        error: String,
-    },
-    #[error("Transaction is already finalized but with different user signatures")]
-    TxAlreadyFinalizedWithDifferentUserSigs,
     #[error("System Transaction not accepted")]
     InvalidSystemTransaction,
 
@@ -394,9 +372,6 @@ pub enum SuiError {
     InvalidAddress,
     #[error("Invalid transaction digest.")]
     InvalidTransactionDigest,
-
-    #[error("Invalid digest length. Expected {expected}, got {actual}")]
-    InvalidDigestLength { expected: usize, actual: usize },
 
     #[error("Unexpected message.")]
     UnexpectedMessage,
@@ -519,6 +494,8 @@ pub enum SuiError {
     FailedToSubmitToConsensus(String),
     #[error("Failed to connect with consensus node: {0}")]
     ConsensusConnectionBroken(String),
+    #[error("Failed to hear back from consensus: {0}")]
+    FailedToHearBackFromConsensus(String),
     #[error("Failed to execute handle_consensus_transaction on Sui: {0}")]
     HandleConsensusTransactionFailure(String),
 
@@ -740,7 +717,6 @@ impl SuiError {
             // Overload errors
             SuiError::TooManyTransactionsPendingExecution { .. } => (true, true),
             SuiError::TooManyTransactionsPendingOnObject { .. } => (true, true),
-            SuiError::TooOldTransactionPendingOnObject { .. } => (true, true),
             SuiError::TooManyTransactionsPendingConsensus => (true, true),
 
             // Non retryable error
@@ -749,8 +725,6 @@ impl SuiError {
             SuiError::QuorumFailedToGetEffectsQuorumWhenProcessingTransaction { .. } => {
                 (false, true)
             }
-            SuiError::TxAlreadyFinalizedWithDifferentUserSigs => (false, true),
-            SuiError::FailedToVerifyTxCertWithExecutedEffects { .. } => (false, true),
             SuiError::ObjectLockConflict { .. } => (false, true),
 
             _ => (false, false),
@@ -775,7 +749,6 @@ impl SuiError {
             self,
             SuiError::TooManyTransactionsPendingExecution { .. }
                 | SuiError::TooManyTransactionsPendingOnObject { .. }
-                | SuiError::TooOldTransactionPendingOnObject { .. }
                 | SuiError::TooManyTransactionsPendingConsensus
         )
     }

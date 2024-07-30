@@ -1,13 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from 'vitest';
-
+import { describe, it, expect } from 'vitest';
 import { BCS, getSuiMoveConfig } from '../src/index';
 import { serde } from './utils';
 
 describe('BCS: Array type', () => {
-	it('should support destructured type name in ser/de', () => {
+	it.skip('should support destructured type name in ser/de', () => {
 		const bcs = new BCS(getSuiMoveConfig());
 		const values = ['this is a string'];
 

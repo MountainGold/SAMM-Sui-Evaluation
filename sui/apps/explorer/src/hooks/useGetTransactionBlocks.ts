@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useSuiClient } from '@mysten/dapp-kit';
-import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 
-import { type PaginatedTransactionResponse, type TransactionFilter } from '@mysten/sui.js/client';
+import type { TransactionFilter } from '@mysten/sui.js/client';
 
 export const DEFAULT_TRANSACTIONS_LIMIT = 20;
 
@@ -16,12 +16,12 @@ export function useGetTransactionBlocks(
 ) {
 	const client = useSuiClient();
 
-	return useInfiniteQuery<PaginatedTransactionResponse>({
-		queryKey: ['get-transaction-blocks', filter, limit],
-		queryFn: async ({ pageParam }) =>
+	return useInfiniteQuery(
+		['get-transaction-blocks', filter, limit],
+		async ({ pageParam }) =>
 			await client.queryTransactionBlocks({
 				filter,
-				cursor: pageParam as string | null,
+				cursor: pageParam,
 				order: 'descending',
 				limit,
 				options: {
@@ -29,11 +29,12 @@ export function useGetTransactionBlocks(
 					showInput: true,
 				},
 			}),
-		initialPageParam: null,
-		getNextPageParam: ({ hasNextPage, nextCursor }) => (hasNextPage ? nextCursor : null),
-		staleTime: 10 * 1000,
-		retry: false,
-		placeholderData: keepPreviousData,
-		refetchInterval,
-	});
+		{
+			getNextPageParam: (lastPage) => (lastPage?.hasNextPage ? lastPage.nextCursor : false),
+			staleTime: 10 * 1000,
+			retry: false,
+			keepPreviousData: true,
+			refetchInterval,
+		},
+	);
 }

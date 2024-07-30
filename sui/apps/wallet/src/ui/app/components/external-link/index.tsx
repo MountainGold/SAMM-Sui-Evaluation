@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { memo } from 'react';
+
 import type { ReactNode } from 'react';
 
 export type ExternalLinkProps = {

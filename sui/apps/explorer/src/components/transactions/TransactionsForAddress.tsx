@@ -18,7 +18,7 @@ interface Props {
 export function TransactionsForAddress({ address, type }: Props) {
 	const client = useSuiClient();
 
-	const { data, isPending, isError } = useQuery({
+	const { data, isLoading, isError } = useQuery({
 		queryKey: ['transactions-for-address', address, type],
 		queryFn: async () => {
 			const filters =
@@ -55,7 +55,7 @@ export function TransactionsForAddress({ address, type }: Props) {
 		},
 	});
 
-	if (isPending) {
+	if (isLoading) {
 		return (
 			<div>
 				<LoadingIndicator />
@@ -76,7 +76,7 @@ export function TransactionsForAddress({ address, type }: Props) {
 
 	if (!hasTxns) {
 		return (
-			<div className="flex h-20 items-center justify-center md:h-full">
+			<div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
 				<Text variant="body/medium" color="steel-dark">
 					No transactions found
 				</Text>

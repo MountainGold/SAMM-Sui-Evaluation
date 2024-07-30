@@ -1,18 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
-import { fromExportedKeypair } from '_src/shared/utils/from-exported-keypair';
 import { type ExportedKeypair } from '@mysten/sui.js/cryptography';
-
 import {
 	Account,
-	type KeyPairExportableAccount,
 	type PasswordUnlockableAccount,
-	type SerializedAccount,
 	type SerializedUIAccount,
 	type SigningAccount,
+	type SerializedAccount,
 } from './Account';
+import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
+import { fromExportedKeypair } from '_src/shared/utils/from-exported-keypair';
 
 type SessionStorageData = { keyPair: ExportedKeypair };
 type EncryptedData = { keyPair: ExportedKeypair };
@@ -36,11 +34,10 @@ export function isImportedAccountSerializedUI(
 
 export class ImportedAccount
 	extends Account<ImportedAccountSerialized, SessionStorageData>
-	implements PasswordUnlockableAccount, SigningAccount, KeyPairExportableAccount
+	implements PasswordUnlockableAccount, SigningAccount
 {
 	readonly canSign = true;
 	readonly unlockType = 'password' as const;
-	readonly exportableKeyPair = true;
 
 	static async createNew(inputs: {
 		keyPair: ExportedKeypair;
@@ -91,14 +88,10 @@ export class ImportedAccount
 			selected,
 			nickname,
 			isPasswordUnlockable: true,
-			isKeyPairExportable: true,
 		};
 	}
 
-	async passwordUnlock(password?: string): Promise<void> {
-		if (!password) {
-			throw new Error('Missing password to unlock the account');
-		}
+	async passwordUnlock(password: string): Promise<void> {
 		const { encrypted } = await this.getStoredData();
 		const { keyPair } = await decrypt<EncryptedData>(password, encrypted);
 		await this.setEphemeralValue({ keyPair });
@@ -116,12 +109,6 @@ export class ImportedAccount
 			throw new Error(`Account is locked`);
 		}
 		return this.generateSignature(data, keyPair);
-	}
-
-	async exportKeyPair(password: string): Promise<ExportedKeypair> {
-		const { encrypted } = await this.getStoredData();
-		const { keyPair } = await decrypt<EncryptedData>(password, encrypted);
-		return keyPair;
 	}
 
 	async #getKeyPair() {

@@ -269,7 +269,8 @@ impl ProgrammableTransactionBuilder {
         amounts: Vec<u64>,
     ) -> anyhow::Result<()> {
         let mut coins = coins.into_iter();
-        let Some(coin) = coins.next() else {
+        let Some(coin) = coins.next()
+        else {
             anyhow::bail!("coins vector is empty");
         };
         let coin_arg = self.obj(ObjectArg::ImmOrOwnedObject(coin))?;

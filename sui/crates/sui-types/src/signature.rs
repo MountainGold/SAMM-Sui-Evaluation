@@ -18,13 +18,13 @@ use schemars::JsonSchema;
 use serde::Serialize;
 use shared_crypto::intent::IntentMessage;
 use std::hash::Hash;
+
 #[derive(Default, Debug, Clone)]
 pub struct VerifyParams {
     // map from JwkId (iss, kid) => JWK
     pub oidc_provider_jwks: ImHashMap<JwkId, JWK>,
     pub supported_providers: Vec<OIDCProvider>,
     pub zk_login_env: ZkLoginEnv,
-    pub verify_legacy_zklogin_address: bool,
 }
 
 impl VerifyParams {
@@ -32,13 +32,11 @@ impl VerifyParams {
         oidc_provider_jwks: ImHashMap<JwkId, JWK>,
         supported_providers: Vec<OIDCProvider>,
         zk_login_env: ZkLoginEnv,
-        verify_legacy_zklogin_address: bool,
     ) -> Self {
         Self {
             oidc_provider_jwks,
             supported_providers,
             zk_login_env,
-            verify_legacy_zklogin_address,
         }
     }
 }
@@ -72,15 +70,6 @@ pub trait AuthenticatorTrait {
         }
         self.verify_claims(value, author, aux_verify_data)
     }
-
-    fn verify_uncached_checks<T>(
-        &self,
-        value: &IntentMessage<T>,
-        author: SuiAddress,
-        aux_verify_data: &VerifyParams,
-    ) -> SuiResult
-    where
-        T: Serialize;
 }
 
 /// Due to the incompatibility of [enum Signature] (which dispatches a trait that
@@ -188,17 +177,6 @@ impl<'de> ::serde::Deserialize<'de> for GenericSignature {
 /// This ports the wrapper trait to the verify_secure defined on [enum Signature].
 impl AuthenticatorTrait for Signature {
     fn verify_user_authenticator_epoch(&self, _: EpochId) -> SuiResult {
-        Ok(())
-    }
-    fn verify_uncached_checks<T>(
-        &self,
-        _value: &IntentMessage<T>,
-        _author: SuiAddress,
-        _aux_verify_data: &VerifyParams,
-    ) -> SuiResult
-    where
-        T: Serialize,
-    {
         Ok(())
     }
 

@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Config } from 'tailwindcss';
-import colors from 'tailwindcss/colors';
 import { fontFamily } from 'tailwindcss/defaultTheme';
+import colors from 'tailwindcss/colors';
 
 /** The minimum line height that text should use to avoid clipping and overflow scrolling */
 const MIN_LINE_HEIGHT = '1.13';
@@ -77,9 +77,6 @@ export default {
 			offwhite: '#fefefe',
 			offblack: '#111111',
 			ebony: '#101828',
-			avocado: {
-				200: '#CBE5BE',
-			},
 		},
 
 		extend: {
@@ -183,7 +180,6 @@ export default {
 			height: {
 				12.5: '3.125rem',
 				31.5: '7.5rem',
-				100: '25rem',
 				120: '30rem',
 				300: '75rem',
 				coinsAndAssetsContainer: '31.25rem',
@@ -203,7 +199,6 @@ export default {
 			minWidth: {
 				10: '2.5rem',
 				18: '4.5rem',
-				44: '11rem',
 				50: '12.5rem',
 				transactionColumn: '31.875rem',
 				smallThumbNailsViewContainer: '13.125rem',
@@ -226,7 +221,6 @@ export default {
 					'linear-gradient(90deg, #ecf1f4 -24.18%, rgba(237 242 245 / 40%) 73.61%, #f3f7f9 114.81%, #ecf1f4 114.82%)',
 				'gradients-graph-cards': 'linear-gradient(176deg, #D2EBFA 51.68%, #D5F7EE 100%)',
 				'gradients-failure': 'linear-gradient(166deg, #FBF0FF 0%, #FFF0F0 100%)',
-				objectCard: 'linear-gradient(166deg, #F0F9FF 9.97%, #FEF7FF 94.97%)',
 			},
 			rotate: {
 				135: '135deg',
@@ -234,13 +228,10 @@ export default {
 			borderRadius: {
 				'2lg': '0.625rem',
 			},
-			aspectRatio: {
-				square: '1 / 1',
-			},
 		},
 	},
 	corePlugins: {
-		aspectRatio: true,
+		aspectRatio: false,
 	},
 	plugins: [
 		require('@headlessui/tailwindcss'),

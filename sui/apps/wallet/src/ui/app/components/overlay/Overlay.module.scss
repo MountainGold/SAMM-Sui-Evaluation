@@ -31,8 +31,7 @@
 .content {
 	width: 100%;
 	padding: 20px;
-	overflow-y: auto;
-	overflow-x: hidden;
+	overflow: auto;
 	background: colors.$white;
 	border-radius: 0 0 20px 20px;
 	position: relative;

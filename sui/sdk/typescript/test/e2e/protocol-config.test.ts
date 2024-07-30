@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, it } from 'vitest';
-
 import { setup } from './utils/setup';
 
 it('can fetch protocol config', async () => {

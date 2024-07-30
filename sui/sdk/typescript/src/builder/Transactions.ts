@@ -1,48 +1,37 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64 } from '@mysten/bcs';
+import { BCS, fromB64 } from '@mysten/bcs';
 import type { Infer, Struct } from 'superstruct';
 import {
+	is,
 	any,
 	array,
-	assert,
-	define,
 	integer,
-	is,
 	literal,
 	object,
 	optional,
-	record,
 	string,
 	union,
+	assert,
+	define,
 	unknown,
+	record,
 } from 'superstruct';
-
-import type { TypeTag } from '../bcs/index.js';
-import { bcs } from '../bcs/index.js';
-import { TypeTagSerializer } from '../bcs/type-tag-serializer.js';
+import type { WellKnownEncoding } from './utils.js';
+import { TRANSACTION_TYPE, create } from './utils.js';
+import { TypeTagSerializer } from './type-tag-serializer.js';
 import { normalizeSuiObjectId } from '../utils/sui-types.js';
-import { Inputs } from './Inputs.js';
-import { create } from './utils.js';
 
 const option = <T extends Struct<any, any>>(some: T) =>
 	union([object({ None: union([literal(true), literal(null)]) }), object({ Some: some })]);
 
-export const TransactionBlockInput = union([
-	object({
-		kind: literal('Input'),
-		index: integer(),
-		value: optional(any()),
-		type: optional(literal('object')),
-	}),
-	object({
-		kind: literal('Input'),
-		index: integer(),
-		value: optional(any()),
-		type: literal('pure'),
-	}),
-]);
+export const TransactionBlockInput = object({
+	kind: literal('Input'),
+	index: integer(),
+	value: optional(any()),
+	type: optional(union([literal('pure'), literal('object')])),
+});
 export type TransactionBlockInput = Infer<typeof TransactionBlockInput>;
 
 const TransactionArgumentTypes = [
@@ -60,6 +49,21 @@ const TransactionArgumentTypes = [
 export const TransactionArgument = union([...TransactionArgumentTypes]);
 export type TransactionArgument = Infer<typeof TransactionArgument>;
 
+// Transaction argument referring to an object:
+export const ObjectTransactionArgument = union([...TransactionArgumentTypes]);
+(ObjectTransactionArgument as any)[TRANSACTION_TYPE] = {
+	kind: 'object',
+} as WellKnownEncoding;
+
+export const PureTransactionArgument = (type: string) => {
+	const struct = union([...TransactionArgumentTypes]);
+	(struct as any)[TRANSACTION_TYPE] = {
+		kind: 'pure',
+		type,
+	} as WellKnownEncoding;
+	return struct;
+};
+
 export const MoveCallTransaction = object({
 	kind: literal('MoveCall'),
 	target: define<`${string}::${string}::${string}`>('target', string().validator),
@@ -70,22 +74,22 @@ export type MoveCallTransaction = Infer<typeof MoveCallTransaction>;
 
 export const TransferObjectsTransaction = object({
 	kind: literal('TransferObjects'),
-	objects: array(TransactionArgument),
-	address: TransactionArgument,
+	objects: array(ObjectTransactionArgument),
+	address: PureTransactionArgument(BCS.ADDRESS),
 });
 export type TransferObjectsTransaction = Infer<typeof TransferObjectsTransaction>;
 
 export const SplitCoinsTransaction = object({
 	kind: literal('SplitCoins'),
-	coin: TransactionArgument,
-	amounts: array(TransactionArgument),
+	coin: ObjectTransactionArgument,
+	amounts: array(PureTransactionArgument('u64')),
 });
 export type SplitCoinsTransaction = Infer<typeof SplitCoinsTransaction>;
 
 export const MergeCoinsTransaction = object({
 	kind: literal('MergeCoins'),
-	destination: TransactionArgument,
-	sources: array(TransactionArgument),
+	destination: ObjectTransactionArgument,
+	sources: array(ObjectTransactionArgument),
 });
 export type MergeCoinsTransaction = Infer<typeof MergeCoinsTransaction>;
 
@@ -94,10 +98,8 @@ export const MakeMoveVecTransaction = object({
 	// TODO: ideally we should use `TypeTag` instead of `record()` here,
 	// but TypeTag is recursively defined and it's tricky to define a
 	// recursive struct in superstruct
-	type: optional(option(record(string(), unknown()))) as never as Struct<
-		{ Some: TypeTag } | { None: true | null }
-	>,
-	objects: array(TransactionArgument),
+	type: optional(option(record(string(), unknown()))),
+	objects: array(ObjectTransactionArgument),
 });
 export type MakeMoveVecTransaction = Infer<typeof MakeMoveVecTransaction>;
 
@@ -121,7 +123,7 @@ export const UpgradeTransaction = object({
 	modules: array(array(integer())),
 	dependencies: array(string()),
 	packageId: string(),
-	ticket: TransactionArgument,
+	ticket: ObjectTransactionArgument,
 });
 export type UpgradeTransaction = Infer<typeof UpgradeTransaction>;
 
@@ -167,28 +169,10 @@ export const Transactions = {
 		objects: TransactionArgument[],
 		address: TransactionArgument,
 	): TransferObjectsTransaction {
-		if (address.kind === 'Input' && address.type === 'pure' && typeof address.value !== 'object') {
-			address.value = Inputs.Pure(bcs.Address.serialize(address.value));
-		}
-
 		return create({ kind: 'TransferObjects', objects, address }, TransferObjectsTransaction);
 	},
 	SplitCoins(coin: TransactionArgument, amounts: TransactionArgument[]): SplitCoinsTransaction {
-		// Handle deprecated usage of `Input.Pure(100)`
-		amounts.forEach((input) => {
-			if (input.kind === 'Input' && input.type === 'pure' && typeof input.value !== 'object') {
-				input.value = Inputs.Pure(bcs.U64.serialize(input.value));
-			}
-		});
-
-		return create(
-			{
-				kind: 'SplitCoins',
-				coin,
-				amounts,
-			},
-			SplitCoinsTransaction,
-		);
+		return create({ kind: 'SplitCoins', coin, amounts }, SplitCoinsTransaction);
 	},
 	MergeCoins(
 		destination: TransactionArgument,

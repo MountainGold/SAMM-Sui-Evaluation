@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 /* eslint-disable @tanstack/query/exhaustive-deps */
 
-import { PaginatedObjectsResponse } from '@mysten/sui.js/client';
 import { useQuery } from '@tanstack/react-query';
-
 import { useRpc } from '../context/RpcClientContext';
-import { TANSTACK_OWNED_OBJECTS_KEY } from '../utils/constants';
+import { PaginatedObjectsResponse } from '@mysten/sui.js/client';
 import { parseObjectDisplays } from '../utils/utils';
+import { TANSTACK_OWNED_OBJECTS_KEY } from '../utils/constants';
 
 export function useOwnedObjects({
 	address,

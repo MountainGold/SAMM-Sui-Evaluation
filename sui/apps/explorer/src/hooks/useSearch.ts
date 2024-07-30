@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { isSuiNSName, useSuiNSEnabled } from '@mysten/core';
-import { useSuiClientQuery, useSuiClient } from '@mysten/dapp-kit';
+import { useLatestSuiSystemState, useSuiClient } from '@mysten/dapp-kit';
 import { type SuiClient, type SuiSystemStateSummary } from '@mysten/sui.js/client';
 import {
 	isValidTransactionDigest,
@@ -125,7 +125,7 @@ const getResultsForValidatorByPoolIdOrSuiAddress = async (
 
 export function useSearch(query: string) {
 	const client = useSuiClient();
-	const { data: systemStateSummery } = useSuiClientQuery('getLatestSuiSystemState');
+	const { data: systemStateSummery } = useLatestSuiSystemState();
 	const suiNSEnabled = useSuiNSEnabled();
 
 	return useQuery({
@@ -145,6 +145,6 @@ export function useSearch(query: string) {
 			return results.map(({ value }) => value).flat();
 		},
 		enabled: !!query,
-		gcTime: 10000,
+		cacheTime: 10000,
 	});
 }

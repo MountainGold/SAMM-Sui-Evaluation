@@ -19,7 +19,6 @@ enum_dispatch.workspace = true
 eyre.workspace = true
 futures.workspace = true
 im.workspace = true
-indexmap.workspace = true
 itertools.workspace = true
 lru.workspace = true
 num_cpus.workspace = true
@@ -28,6 +27,7 @@ once_cell.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 rand.workspace = true
+reqwest.workspace = true
 rocksdb.workspace = true
 scopeguard.workspace = true
 serde.workspace = true
@@ -61,7 +61,6 @@ narwhal-crypto.workspace = true
 narwhal-executor.workspace = true
 narwhal-network.workspace = true
 narwhal-node.workspace = true
-narwhal-test-utils.workspace = true
 narwhal-types.workspace = true
 narwhal-worker.workspace = true
 shared-crypto.workspace = true
@@ -76,13 +75,10 @@ sui-macros.workspace = true
 sui-move-build.workspace = true
 sui-network.workspace = true
 sui-protocol-config.workspace = true
-sui-transaction-checks.workspace = true
 sui-simulator.workspace = true
 sui-storage.workspace = true
 sui-types.workspace = true
-workspace-hack.workspace = true
-zeroize.workspace = true
-mysticeti-core = { git = "https://github.com/MystenLabs/mysticeti", rev = "318d61d27f47d257d99a86983d835e9e9756bc59" }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 clap.workspace = true
@@ -96,6 +92,7 @@ serde_yaml.workspace = true
 
 move-symbol-pool.workspace = true
 
+narwhal-test-utils.workspace = true
 sui-test-transaction-builder.workspace = true
 sui-types = { workspace = true, features = ["test-utils"] }
 

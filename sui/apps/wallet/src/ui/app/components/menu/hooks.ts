@@ -3,6 +3,7 @@
 
 import { createContext, useContext, useMemo } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
+
 import type { Location } from 'react-router-dom';
 
 const MENU_PARAM = 'menu';

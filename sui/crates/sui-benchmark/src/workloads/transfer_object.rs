@@ -8,7 +8,6 @@ use tracing::error;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::drivers::Interval;
 use crate::system_state_observer::SystemStateObserver;
 use crate::workloads::payload::Payload;
 use crate::workloads::workload::WorkloadBuilder;
@@ -101,8 +100,6 @@ impl TransferObjectWorkloadBuilder {
         num_workers: u64,
         in_flight_ratio: u64,
         num_transfer_accounts: u64,
-        duration: Interval,
-        group: u32,
     ) -> Option<WorkloadBuilderInfo> {
         let target_qps = (workload_weight * target_qps as f32) as u64;
         let num_workers = (workload_weight * num_workers as f32).ceil() as u64;
@@ -114,8 +111,6 @@ impl TransferObjectWorkloadBuilder {
                 target_qps,
                 num_workers,
                 max_ops,
-                duration,
-                group,
             };
             let workload_builder = Box::<dyn WorkloadBuilder<dyn Payload>>::from(Box::new(
                 TransferObjectWorkloadBuilder {

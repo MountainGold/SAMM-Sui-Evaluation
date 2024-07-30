@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useSuiClient } from '@mysten/dapp-kit';
-import { PaginatedObjectsResponse, type SuiObjectDataFilter } from '@mysten/sui.js/client';
+import { type SuiObjectDataFilter } from '@mysten/sui.js/client';
 import { useInfiniteQuery } from '@tanstack/react-query';
 
 const MAX_OBJECTS_PER_REQ = 6;
@@ -13,10 +13,9 @@ export function useGetOwnedObjects(
 	maxObjectRequests = MAX_OBJECTS_PER_REQ,
 ) {
 	const client = useSuiClient();
-	return useInfiniteQuery<PaginatedObjectsResponse>({
-		initialPageParam: null,
-		queryKey: ['get-owned-objects', address, filter, maxObjectRequests],
-		queryFn: ({ pageParam }) =>
+	return useInfiniteQuery(
+		['get-owned-objects', address, filter, maxObjectRequests],
+		({ pageParam }) =>
 			client.getOwnedObjects({
 				owner: address!,
 				filter,
@@ -26,11 +25,12 @@ export function useGetOwnedObjects(
 					showDisplay: true,
 				},
 				limit: maxObjectRequests,
-				cursor: pageParam as string | null,
+				cursor: pageParam,
 			}),
-
-		staleTime: 10 * 1000,
-		enabled: !!address,
-		getNextPageParam: ({ hasNextPage, nextCursor }) => (hasNextPage ? nextCursor : null),
-	});
+		{
+			staleTime: 10 * 1000,
+			enabled: !!address,
+			getNextPageParam: (lastPage) => (lastPage?.hasNextPage ? lastPage.nextCursor : null),
+		},
+	);
 }

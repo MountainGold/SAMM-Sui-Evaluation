@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { bcs } from '@mysten/sui.js/bcs';
-
 import {
 	KIOSK_PURCHASE_CAP,
 	KIOSK_TYPE,

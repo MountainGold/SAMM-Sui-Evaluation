@@ -1,15 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { ReactNode } from 'react';
+import { OwnedObjectType } from './Inventory/OwnedObjects';
 import { KioskListing } from '@mysten/kiosk';
 import { useWalletKit } from '@mysten/wallet-kit';
-import { ReactNode } from 'react';
-
-import { DEFAULT_IMAGE } from '../utils/constants';
 import { formatSui, mistToSui } from '../utils/utils';
-import { OwnedObjectType } from './Inventory/OwnedObjects';
 import { ItemLockedBadge } from './Kiosk/ItemLockedBadge';
-
+import { DEFAULT_IMAGE } from '../utils/constants';
 export interface DisplayObject {
 	listing?: KioskListing | null;
 	item: OwnedObjectType;

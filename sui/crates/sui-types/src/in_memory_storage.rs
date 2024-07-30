@@ -2,21 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::base_types::VersionNumber;
-use crate::committee::EpochId;
-use crate::inner_temporary_store::WrittenObjects;
-use crate::storage::{
-    get_module, get_module_by_id, load_package_object_from_object_store, PackageObjectArc,
-};
+use crate::storage::get_module_by_id;
 use crate::{
     base_types::{ObjectID, ObjectRef, SequenceNumber},
     error::{SuiError, SuiResult},
     object::{Object, Owner},
-    storage::{BackingPackageStore, ChildObjectResolver, ObjectStore, ParentSync},
+    storage::{BackingPackageStore, ChildObjectResolver, ObjectStore, ParentSync, WriteKind},
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 // TODO: We should use AuthorityTemporaryStore instead.
 // Keeping this functionally identical to AuthorityTemporaryStore is a pain.
@@ -26,8 +23,8 @@ pub struct InMemoryStorage {
 }
 
 impl BackingPackageStore for InMemoryStorage {
-    fn get_package_object(&self, package_id: &ObjectID) -> SuiResult<Option<PackageObjectArc>> {
-        load_package_object_from_object_store(self, package_id)
+    fn get_package_object(&self, package_id: &ObjectID) -> SuiResult<Option<Object>> {
+        Ok(self.persistent.get(package_id).cloned())
     }
 }
 
@@ -58,27 +55,6 @@ impl ChildObjectResolver for InMemoryStorage {
         }
         Ok(Some(child_object))
     }
-
-    fn get_object_received_at_version(
-        &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
-        receive_object_at_version: SequenceNumber,
-        _epoch_id: EpochId,
-    ) -> SuiResult<Option<Object>> {
-        let recv_object = match self.persistent.get(receiving_object_id).cloned() {
-            None => return Ok(None),
-            Some(obj) => obj,
-        };
-        if recv_object.owner != Owner::AddressOwner((*owner).into()) {
-            return Ok(None);
-        }
-
-        if recv_object.version() != receive_object_at_version {
-            return Ok(None);
-        }
-        Ok(Some(recv_object))
-    }
 }
 
 impl ParentSync for InMemoryStorage {
@@ -94,7 +70,14 @@ impl ModuleResolver for InMemoryStorage {
     type Error = SuiError;
 
     fn get_module(&self, module_id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
-        get_module(self, module_id)
+        Ok(self
+            .get_package(&ObjectID::from(*module_id.address()))?
+            .and_then(|package| {
+                package
+                    .serialized_module_map()
+                    .get(module_id.name().as_str())
+                    .cloned()
+            }))
     }
 }
 
@@ -164,12 +147,12 @@ impl GetModule for InMemoryStorage {
 }
 
 impl InMemoryStorage {
-    pub fn new(objects: Vec<Object>) -> Self {
+    pub fn new(objects: Vec<Object>) -> Arc<Self> {
         let mut persistent = BTreeMap::new();
         for o in objects {
             persistent.insert(o.id(), o);
         }
-        Self { persistent }
+        Arc::new(Self { persistent })
     }
 
     pub fn get_object(&self, id: &ObjectID) -> Option<&Object> {
@@ -197,8 +180,8 @@ impl InMemoryStorage {
         self.persistent
     }
 
-    pub fn finish(&mut self, written: WrittenObjects) {
-        for (_id, new_object) in written {
+    pub fn finish(&mut self, written: BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>) {
+        for (_id, (_, new_object, _)) in written {
             debug_assert!(new_object.id() == _id);
             self.insert_object(new_object);
         }

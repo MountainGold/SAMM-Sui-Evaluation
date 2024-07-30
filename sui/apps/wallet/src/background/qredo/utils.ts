@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type QredoConnectInput } from '_src/dapp-interface/WalletStandardInterface';
 import Browser from 'webextension-polyfill';
 
 import {
@@ -9,6 +8,7 @@ import {
 	type QredoConnectPendingRequest,
 	type UIQredoPendingRequest,
 } from './types';
+import { type QredoConnectInput } from '_src/dapp-interface/WalletStandardInterface';
 
 export function qredoConnectPageUrl(requestID: string) {
 	return `${Browser.runtime.getURL('ui.html')}#/accounts/qredo-connect/${encodeURIComponent(
@@ -45,7 +45,7 @@ export function validateInputOrThrow(input: QredoConnectInput) {
 		service,
 		apiUrl: apiUrl.toString(),
 		token,
-		organization: trimString('organization' in input ? input.organization : input.workspace),
+		organization: trimString(input.organization),
 	};
 }
 

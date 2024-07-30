@@ -24,6 +24,7 @@ module deepbook::clob_v2 {
 
     friend deepbook::order_query;
     // <<<<<<<<<<<<<<<<<<<<<<<< Error codes <<<<<<<<<<<<<<<<<<<<<<<<
+    const ENotImplemented: u64 = 1;
     const EInvalidFeeRateRebateRate: u64 = 2;
     const EInvalidOrderId: u64 = 3;
     const EUnauthorizedCancel: u64 = 4;
@@ -39,7 +40,9 @@ module deepbook::clob_v2 {
     const EInvalidUser: u64 = 12;
     const ENotEqual: u64 = 13;
     const EInvalidRestriction: u64 = 14;
+    const ELevelNotEmpty: u64 = 15;
     const EInvalidPair: u64 = 16;
+    const EInvalidBaseBalance: u64 = 17;
     const EInvalidFee: u64 = 18;
     const EInvalidExpireTimestamp: u64 = 19;
     const EInvalidTickSizeLotSize: u64 = 20;
@@ -53,6 +56,7 @@ module deepbook::clob_v2 {
     // Cancel older (resting) order in full. Continue to execute the newer taking order.
     const CANCEL_OLDEST: u8 = 0;
     // Restrictions on limit orders.
+    const N_RESTRICTIONS: u8 = 4;
     const NO_RESTRICTION: u8 = 0;
     // Mandates that whatever amount of an order that can be executed in the current transaction, be filled and then the rest of the order canceled.
     const IMMEDIATE_OR_CANCEL: u8 = 1;
@@ -64,12 +68,10 @@ module deepbook::clob_v2 {
     const MIN_ASK_ORDER_ID: u64 = 1 << 63;
     const MIN_PRICE: u64 = 0;
     const MAX_PRICE: u64 = ((1u128 << 64 - 1) as u64);
-    #[test_only]
     const TIMESTAMP_INF: u64 = ((1u128 << 64 - 1) as u64);
     const REFERENCE_TAKER_FEE_RATE: u64 = 2_500_000;
     const REFERENCE_MAKER_REBATE_RATE: u64 = 1_500_000;
     const FEE_AMOUNT_FOR_CREATE_POOL: u64 = 100 * 1_000_000_000; // 100 SUI
-    #[test_only]
     const PREVENT_SELF_MATCHING_DEFAULT: u8 = 0;
 
     // <<<<<<<<<<<<<<<<<<<<<<<< Constants <<<<<<<<<<<<<<<<<<<<<<<<
@@ -216,7 +218,7 @@ module deepbook::clob_v2 {
         open_orders: LinkedTable<u64, Order>,
     }
 
-    struct Pool<phantom BaseAsset, phantom QuoteAsset> has key, store {
+    struct Pool<phantom BaseAsset, phantom QuoteAsset> has key {
         // The key to the following Critbit Tree are order prices.
         id: UID,
         // All open bid orders.
@@ -269,16 +271,43 @@ module deepbook::clob_v2 {
         creation_fee: Balance<SUI>,
         ctx: &mut TxContext,
     ) {
+        let base_type_name = type_name::get<BaseAsset>();
+        let quote_type_name = type_name::get<QuoteAsset>();
+
+        assert!(clob_math::unsafe_mul(lot_size, tick_size) > 0, EInvalidTickSizeLotSize);
+        assert!(base_type_name != quote_type_name, EInvalidPair);
+        assert!(taker_fee_rate >= maker_rebate_rate, EInvalidFeeRateRebateRate);
+
+        let pool_uid = object::new(ctx);
+        let pool_id = *object::uid_as_inner(&pool_uid);
         transfer::share_object(
-            create_pool_with_return_<BaseAsset, QuoteAsset>(
+            Pool<BaseAsset, QuoteAsset> {
+                id: pool_uid,
+                bids: critbit::new(ctx),
+                asks: critbit::new(ctx),
+                next_bid_order_id: MIN_BID_ORDER_ID,
+                next_ask_order_id: MIN_ASK_ORDER_ID,
+                usr_open_orders: table::new(ctx),
                 taker_fee_rate,
                 maker_rebate_rate,
                 tick_size,
                 lot_size,
+                base_custodian: custodian::new<BaseAsset>(ctx),
+                quote_custodian: custodian::new<QuoteAsset>(ctx),
                 creation_fee,
-                ctx
-            )
+                base_asset_trading_fees: balance::zero(),
+                quote_asset_trading_fees: balance::zero(),
+            }
         );
+        event::emit(PoolCreated {
+            pool_id,
+            base_asset: base_type_name,
+            quote_asset: quote_type_name,
+            taker_fee_rate,
+            maker_rebate_rate,
+            tick_size,
+            lot_size,
+        })
     }
 
     public fun create_pool<BaseAsset, QuoteAsset>(
@@ -287,6 +316,7 @@ module deepbook::clob_v2 {
         creation_fee: Coin<SUI>,
         ctx: &mut TxContext,
     ) {
+        assert!(coin::value(&creation_fee) == FEE_AMOUNT_FOR_CREATE_POOL, EInvalidFee);
         create_customized_pool<BaseAsset, QuoteAsset>(
             tick_size,
             lot_size,
@@ -297,9 +327,9 @@ module deepbook::clob_v2 {
         );
     }
 
-    /// Function for creating pool with customized taker fee rate and maker rebate rate.
-    /// The taker_fee_rate should be greater than or equal to the maker_rebate_rate, and both should have a scaling of 10^9.
-    /// Taker_fee_rate of 0.25% should be 2_500_000 for example
+    // Function for creating pool with customized taker fee rate and maker rebate rate.
+    // The taker_fee_rate should be greater than or equal to the maker_rebate_rate, and both should have a scaling of 10^9.
+    // Taker_fee_rate of 0.25% should be 2_500_000 for example
     public fun create_customized_pool<BaseAsset, QuoteAsset>(
         tick_size: u64,
         lot_size: u64,
@@ -308,94 +338,8 @@ module deepbook::clob_v2 {
         creation_fee: Coin<SUI>,
         ctx: &mut TxContext,
     ) {
+        assert!(coin::value(&creation_fee) == FEE_AMOUNT_FOR_CREATE_POOL, EInvalidFee);
         create_pool_<BaseAsset, QuoteAsset>(
-            taker_fee_rate,
-            maker_rebate_rate,
-            tick_size,
-            lot_size,
-            coin::into_balance(creation_fee),
-            ctx
-        )
-    }
-
-    /// Helper function that all the create pools now call to create pools.
-    fun create_pool_with_return_<BaseAsset, QuoteAsset>(
-        taker_fee_rate: u64,
-        maker_rebate_rate: u64,
-        tick_size: u64,
-        lot_size: u64,
-        creation_fee: Balance<SUI>,
-        ctx: &mut TxContext,
-    ) : Pool<BaseAsset, QuoteAsset> {
-        assert!(balance::value(&creation_fee) == FEE_AMOUNT_FOR_CREATE_POOL, EInvalidFee);
-
-        let base_type_name = type_name::get<BaseAsset>();
-        let quote_type_name = type_name::get<QuoteAsset>();
-
-        assert!(clob_math::unsafe_mul(lot_size, tick_size) > 0, EInvalidTickSizeLotSize);
-        assert!(base_type_name != quote_type_name, EInvalidPair);
-        assert!(taker_fee_rate >= maker_rebate_rate, EInvalidFeeRateRebateRate);
-
-        let pool_uid = object::new(ctx);
-        let pool_id = *object::uid_as_inner(&pool_uid);
-
-        event::emit(PoolCreated {
-            pool_id,
-            base_asset: base_type_name,
-            quote_asset: quote_type_name,
-            taker_fee_rate,
-            maker_rebate_rate,
-            tick_size,
-            lot_size,
-        });
-        Pool<BaseAsset, QuoteAsset> {
-            id: pool_uid,
-            bids: critbit::new(ctx),
-            asks: critbit::new(ctx),
-            next_bid_order_id: MIN_BID_ORDER_ID,
-            next_ask_order_id: MIN_ASK_ORDER_ID,
-            usr_open_orders: table::new(ctx),
-            taker_fee_rate,
-            maker_rebate_rate,
-            tick_size,
-            lot_size,
-            base_custodian: custodian::new<BaseAsset>(ctx),
-            quote_custodian: custodian::new<QuoteAsset>(ctx),
-            creation_fee,
-            base_asset_trading_fees: balance::zero(),
-            quote_asset_trading_fees: balance::zero(),
-        }
-    }
-
-    /// Function for creating an external pool. This API can be used to wrap deepbook pools into other objects.
-    public fun create_pool_with_return<BaseAsset, QuoteAsset>(
-        tick_size: u64,
-        lot_size: u64,
-        creation_fee: Coin<SUI>,
-        ctx: &mut TxContext,
-    ) : Pool<BaseAsset, QuoteAsset> {
-        create_customized_pool_with_return<BaseAsset, QuoteAsset>(
-            tick_size,
-            lot_size,
-            REFERENCE_TAKER_FEE_RATE,
-            REFERENCE_MAKER_REBATE_RATE,
-            creation_fee,
-            ctx,
-        )
-    }
-
-    /// Function for creating pool with customized taker fee rate and maker rebate rate.
-    /// The taker_fee_rate should be greater than or equal to the maker_rebate_rate, and both should have a scaling of 10^9.
-    /// Taker_fee_rate of 0.25% should be 2_500_000 for example
-    public fun create_customized_pool_with_return<BaseAsset, QuoteAsset>(
-        tick_size: u64,
-        lot_size: u64,
-        taker_fee_rate: u64,
-        maker_rebate_rate: u64,
-        creation_fee: Coin<SUI>,
-        ctx: &mut TxContext,
-    ) : Pool<BaseAsset, QuoteAsset> {
-        create_pool_with_return_<BaseAsset, QuoteAsset>(
             taker_fee_rate,
             maker_rebate_rate,
             tick_size,
@@ -1353,7 +1297,7 @@ module deepbook::clob_v2 {
             if (is_bid) { &pool.bids } else { &pool.asks },
             tick_price);
         assert!(tick_exists, EInvalidOrderId);
-        let order = remove_order(
+        let order = remove_order<BaseAsset, QuoteAsset>(
             if (is_bid) { &mut pool.bids } else { &mut pool.asks },
             usr_open_orders,
             tick_index,
@@ -1373,7 +1317,7 @@ module deepbook::clob_v2 {
         emit_order_canceled<BaseAsset, QuoteAsset>(*object::uid_as_inner(&pool.id), &order);
     }
 
-    fun remove_order(
+    fun remove_order<BaseAsset, QuoteAsset>(
         open_orders: &mut CritbitTree<TickLevel>,
         usr_open_orders: &mut LinkedTable<u64, u64>,
         tick_index: u64,
@@ -1409,7 +1353,7 @@ module deepbook::clob_v2 {
                 if (is_bid) { &mut pool.bids }
                 else { &mut pool.asks };
             let (_, tick_index) = critbit::find_leaf(open_orders, order_price);
-            let order = remove_order(
+            let order = remove_order<BaseAsset, QuoteAsset>(
                 open_orders,
                 usr_open_order_ids,
                 tick_index,
@@ -1487,7 +1431,7 @@ module deepbook::clob_v2 {
                 assert!(tick_exists, EInvalidTickPrice);
                 tick_index = new_tick_index;
             };
-            let order = remove_order(
+            let order = remove_order<BaseAsset, QuoteAsset>(
                 if (is_bid) { &mut pool.bids } else { &mut pool.asks },
                 usr_open_orders,
                 tick_index,
@@ -1566,7 +1510,7 @@ module deepbook::clob_v2 {
                 assert!(tick_exists, EInvalidTickPrice);
                 tick_index = new_tick_index;
             };
-            let order = remove_order(open_orders, usr_open_orders, tick_index, order_id, owner);
+            let order = remove_order<BaseAsset, QuoteAsset>(open_orders, usr_open_orders, tick_index, order_id, owner);
             assert!(order.expire_timestamp < now, EInvalidExpireTimestamp);
             if (is_bid) {
                 let balance_locked = clob_math::mul(order.quantity, order.price);
@@ -1686,7 +1630,7 @@ module deepbook::clob_v2 {
         price_low = critbit::find_closest_key(&pool.bids, price_low);
         price_high = critbit::find_closest_key(&pool.bids, price_high);
         while (price_low <= price_high) {
-            let depth = get_level2_book_status(
+            let depth = get_level2_book_status<BaseAsset, QuoteAsset>(
                 &pool.bids,
                 price_low,
                 clock::timestamp_ms(clock)
@@ -1728,7 +1672,7 @@ module deepbook::clob_v2 {
         price_low = critbit::find_closest_key(&pool.asks, price_low);
         price_high = critbit::find_closest_key(&pool.asks, price_high);
         while (price_low <= price_high) {
-            let depth = get_level2_book_status(
+            let depth = get_level2_book_status<BaseAsset, QuoteAsset>(
                 &pool.asks,
                 price_low,
                 clock::timestamp_ms(clock)
@@ -1745,7 +1689,7 @@ module deepbook::clob_v2 {
     }
 
     /// internal func to retrive single depth of a tick price
-    fun get_level2_book_status(
+    fun get_level2_book_status<BaseAsset, QuoteAsset>(
         open_orders: &CritbitTree<TickLevel>,
         price: u64,
         time_stamp: u64
@@ -1862,53 +1806,6 @@ module deepbook::clob_v2 {
         };
     }
 
-    // Test wrapped pool struct
-    #[test_only]
-    struct WrappedPool<phantom BaseAsset, phantom QuoteAsset> has key, store {
-        id: UID,
-        pool: Pool<BaseAsset, QuoteAsset>,
-    }
-
-    #[test_only]
-    public fun borrow_mut_pool<BaseAsset, QuoteAsset>(
-        wpool: &mut WrappedPool<BaseAsset, QuoteAsset>
-    ): &mut Pool<BaseAsset, QuoteAsset> {
-        &mut wpool.pool
-    }
-
-    #[test_only]
-    public fun setup_test_with_tick_lot_and_wrapped_pool(
-        taker_fee_rate: u64,
-        maker_rebate_rate: u64,
-        // tick size with scaling
-        tick_size: u64,
-        lot_size: u64,
-        scenario: &mut Scenario,
-        sender: address,
-    ) {
-        test_scenario::next_tx(scenario, sender);
-        {
-            clock::share_for_testing(clock::create_for_testing(test_scenario::ctx(scenario)));
-        };
-
-        test_scenario::next_tx(scenario, sender);
-        {
-            let pool = create_pool_with_return_<SUI, USD>(
-                taker_fee_rate,
-                maker_rebate_rate,
-                tick_size,
-                lot_size,
-                balance::create_for_testing(FEE_AMOUNT_FOR_CREATE_POOL),
-                test_scenario::ctx(scenario)
-            );
-            // let pool =
-            transfer::share_object(WrappedPool {
-                id: object::new(test_scenario::ctx(scenario)),
-                pool
-            });
-        };
-    }
-
     #[test_only]
     public fun setup_test(
         taker_fee_rate: u64,
@@ -1917,23 +1814,6 @@ module deepbook::clob_v2 {
         sender: address,
     ) {
         setup_test_with_tick_lot(
-            taker_fee_rate,
-            maker_rebate_rate,
-            1 * FLOAT_SCALING,
-            1,
-            scenario,
-            sender,
-        );
-    }
-
-    #[test_only]
-    public fun setup_test_wrapped_pool(
-        taker_fee_rate: u64,
-        maker_rebate_rate: u64,
-        scenario: &mut Scenario,
-        sender: address,
-    ) {
-        setup_test_with_tick_lot_and_wrapped_pool(
             taker_fee_rate,
             maker_rebate_rate,
             1 * FLOAT_SCALING,
@@ -2226,7 +2106,7 @@ module deepbook::clob_v2 {
     ): Order {
         let order;
         if (is_bid) {
-            order = remove_order(
+            order = remove_order<BaseAsset, QuoteAsset>(
                 &mut pool.bids,
                 borrow_mut(&mut pool.usr_open_orders, owner),
                 tick_index,
@@ -2234,7 +2114,7 @@ module deepbook::clob_v2 {
                 owner
             )
         } else {
-            order = remove_order(
+            order = remove_order<BaseAsset, QuoteAsset>(
                 &mut pool.asks,
                 borrow_mut(&mut pool.usr_open_orders, owner),
                 tick_index,
@@ -2264,7 +2144,7 @@ module deepbook::clob_v2 {
         };
         test_scenario::next_tx(&mut test, alice);
         {
-            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&test);
+            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&mut test);
             let clock = test_scenario::take_shared<Clock>(&test);
             let account_cap = test_scenario::take_from_address<AccountCap>(&test, alice);
             let account_cap_user = account_owner(&account_cap);
@@ -2326,7 +2206,7 @@ module deepbook::clob_v2 {
         };
         test_scenario::next_tx(&mut test, alice);
         {
-            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&test);
+            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&mut test);
             let clock = test_scenario::take_shared<Clock>(&test);
             let account_cap = test_scenario::take_from_address<AccountCap>(&test, alice);
             let account_cap_user = account_owner(&account_cap);
@@ -2409,7 +2289,7 @@ module deepbook::clob_v2 {
 
         test_scenario::next_tx(&mut test, bob);
         {
-            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&test);
+            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&mut test);
             let clock = test_scenario::take_shared<Clock>(&test);
             let account_cap = test_scenario::take_from_address<AccountCap>(&test, bob);
             let account_cap_user = account_owner(&account_cap);
@@ -2467,7 +2347,7 @@ module deepbook::clob_v2 {
         };
         test_scenario::next_tx(&mut test, alice);
         {
-            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&test);
+            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&mut test);
             let clock = test_scenario::take_shared<Clock>(&test);
             let account_cap = test_scenario::take_from_address<AccountCap>(&test, alice);
             let account_cap_user = account_owner(&account_cap);
@@ -2550,7 +2430,7 @@ module deepbook::clob_v2 {
 
         test_scenario::next_tx(&mut test, bob);
         {
-            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&test);
+            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&mut test);
             let clock = test_scenario::take_shared<Clock>(&test);
             let account_cap = test_scenario::take_from_address<AccountCap>(&test, bob);
             let account_cap_user = account_owner(&account_cap);
@@ -2607,7 +2487,7 @@ module deepbook::clob_v2 {
         };
         test_scenario::next_tx(&mut test, alice);
         {
-            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&test);
+            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&mut test);
             let clock = test_scenario::take_shared<Clock>(&test);
             let account_cap = test_scenario::take_from_address<AccountCap>(&test, alice);
             let account_cap_user = account_owner(&account_cap);
@@ -2696,7 +2576,7 @@ module deepbook::clob_v2 {
 
         test_scenario::next_tx(&mut test, bob);
         {
-            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&test);
+            let pool = test_scenario::take_shared<Pool<SUI, USD>>(&mut test);
             let clock = test_scenario::take_shared<Clock>(&test);
             let account_cap = test_scenario::take_from_address<AccountCap>(&test, bob);
             let account_cap_user = account_owner(&account_cap);
@@ -2790,7 +2670,7 @@ module deepbook::clob_v2 {
     public fun check_balance_invariants_for_account<BaseAsset, QuoteAsset>(
         account_cap: &AccountCap,
         quote_custodian: &Custodian<QuoteAsset>,
-        base_custodian: &Custodian<BaseAsset>,
+        base_custodian: &Custodian<BaseAsset>, 
         pool: &Pool<BaseAsset, QuoteAsset>
     ) {
         let account_cap_user = custodian::account_owner(account_cap);

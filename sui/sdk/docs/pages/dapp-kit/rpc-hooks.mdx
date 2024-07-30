@@ -3,79 +3,69 @@
 Sui dApp Kit ships with hooks for each of the rpc methods defined in the
 [JSON RPC specification](https://docs.sui.io/sui-jsonrpc)
 
-## `useSuiClientQuery`
+## Query hooks
 
-You can load data from the Sui RPC using the `useSuiClientQuery` hook. This hook is a wrapper around
-the [useQuery](https://tanstack.com/query/latest/docs/react/guides/queries) hook from
+The majority of the rpc methods are implemented using the
+[useQuery](https://tanstack.com/query/latest/docs/react/guides/queries) hook from
 @tanstack/react-query.
 
-The hook takes the RPC method name as the first argument and any parameters as the second argument.
-Any additional `useQuery` options can be passed as the third argument. You can read the
+The hooks take the RPC calls parameters as the first argument, and optionally any `useQuery` options
+as the second argument. You can read the
 [useQuery documentation](https://tanstack.com/query/latest/docs/react/guides/queries) for more
 details on the full set of options available.
 
 ```tsx
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useOwnedObject } from '@mysten/dapp-kit';
 
 function MyComponent() {
-	const { data, isPending, isError, error, refetch } = useSuiClientQuery(
-		'getOwnedObjects',
+	const { data, isLoading, error, refetch } = useOwnedObjects(
 		{ owner: '0x123' },
 		{
-			gcTime: 10000,
+			cacheTime: 10000,
 		},
 	);
 
-	if (isPending) {
+	if (isLoading) {
 		return <div>Loading...</div>;
-	}
-
-	if (isError) {
-		return <div>Error: {error.message}</div>;
 	}
 
 	return <pre>{JSON.stringify(data, null, 2)}</pre>;
 }
 ```
 
-## `useSuiClientInfiniteQuery`
+## Infinite Query hooks
 
-For RPC methods that support pagination dApp Kit also implements a `useSuiClientInfiniteQuery` hook.
-For more details checkout out the
+For RPC methods that support pagination dApp Kit also implements a `useInfiniteQuery` hook. For more
+details checkout out the
 [useInfiniteQuery documentation](https://tanstack.com/query/latest/docs/react/guides/infinite-queries).
 
 ```tsx
-import { useSuiClientInfiniteQuery } from '@mysten/dapp-kit';
+import { useOwnedObjectsInfinite } from '@mysten/dapp-kit';
 
 function MyComponent() {
-	const { data, isPending, isError, error, isFetching, fetchNextPage, hasNextPage } =
-		useSuiClientInfiniteQuery('getOwnedObjects', {
-			owner: '0x123',
-		});
+	const { data, isLoading, isFetching, fetchNextPage, hasNextPage } = useOwnedObjectsInfinite({
+		owner: '0x123',
+	});
 
-	if (isPending) {
+	if (isLoading) {
 		return <div>Loading...</div>;
-	}
-
-	if (isError) {
-		return <div>Error: {error.message}</div>;
 	}
 
 	return <pre>{JSON.stringify(data, null, 2)}</pre>;
 }
 ```
 
-## `useSuiClientMutation`
+## Mutation hooks
 
-For RPC methods that mutate state dApp Kit implements a `useSuiClientMutation` hook. This hook can
-be used with any RPC method to imperatively call the RPC method. For more details checkout the
+For RPC methods that mutate state dApp Kit implements a `useMutation` hook. For more details
+checkout the
 [useMutation documentation](https://tanstack.com/query/latest/docs/react/guides/mutations).
 
 ```tsx
-import { useSuiClientMutation } from '@mysten/dapp-kit';
+import { useOwnedObjectInfinite } from '@mysten/dapp-kit';
 
 function MyComponent() {
-	const { mutate } = useSuiClientMutation('dryRunTransactionBlock');
+	const { mutate } = useDryRunTransactionBlock();
 
 	return (
 		<Button
@@ -88,27 +78,5 @@ function MyComponent() {
 			Dry run transaction
 		</Button>
 	);
-}
-```
-
-## `useResolveSuiNSName`
-
-To get the SuiNS name for a given address, use the `useResolveSuiNSName` hook.
-
-```tsx
-import { useResolveSuiNSName } from '@mysten/dapp-kit';
-
-function MyComponent() {
-	const { data, isPending } = useResolveSuiNSName('0x123');
-
-	if (isPending) {
-		return <div>Loading...</div>;
-	}
-
-	if (data) {
-		return <div>Domain name is: {data}</div>;
-	}
-
-	return <div>Domain name not found</div>;
 }
 ```

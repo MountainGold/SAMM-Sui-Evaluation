@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '_app/shared/text';
-import { CoinIcon } from '_components/coin-icon';
 import { useFormatCoin } from '@mysten/core';
 import { type ReactNode } from 'react';
+
+import { Text } from '_app/shared/text';
+import { CoinIcon } from '_components/coin-icon';
 
 type CoinItemProps = {
 	coinType: string;
@@ -12,17 +13,9 @@ type CoinItemProps = {
 	isActive?: boolean;
 	usd?: number;
 	centerAction?: ReactNode;
-	subtitle?: string;
 };
 
-export function CoinItem({
-	coinType,
-	balance,
-	isActive,
-	usd,
-	centerAction,
-	subtitle,
-}: CoinItemProps) {
+export function CoinItem({ coinType, balance, isActive, usd, centerAction }: CoinItemProps) {
 	const [formatted, symbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
 
 	return (
@@ -33,14 +26,9 @@ export function CoinItem({
 					<Text variant="body" color="gray-90" weight="semibold" truncate>
 						{coinMeta?.name || symbol} {isActive ? 'available' : ''}
 					</Text>
-					{!isActive && !subtitle ? (
+					{!isActive ? (
 						<Text variant="subtitle" color="steel-dark" weight="medium">
 							{symbol}
-						</Text>
-					) : null}
-					{subtitle ? (
-						<Text variant="subtitle" color="steel" weight="medium">
-							{subtitle}
 						</Text>
 					) : null}
 				</div>

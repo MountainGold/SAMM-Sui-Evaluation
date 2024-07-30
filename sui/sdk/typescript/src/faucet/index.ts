@@ -19,29 +19,23 @@ type BatchFaucetResponse = {
 	error?: string | null;
 };
 
-type BatchSendStatusType = {
-	status: 'INPROGRESS' | 'SUCCEEDED' | 'DISCARDED';
-	transferred_gas_objects: { sent: FaucetCoinInfo[] };
-};
+type BatchSendStatusType = 'INPROGRESS' | 'SUCCEEDED' | 'DISCARDED';
 
 type BatchStatusFaucetResponse = {
 	status: BatchSendStatusType;
 	error?: string | null;
 };
 
-type FaucetRequest = {
-	host: string;
-	path: string;
-	body?: Record<string, any>;
-	headers?: HeadersInit;
-	method: 'GET' | 'POST';
-};
-
-async function faucetRequest({ host, path, body, headers, method }: FaucetRequest) {
+async function faucetRequest(
+	host: string,
+	path: string,
+	body: Record<string, any>,
+	headers?: HeadersInit,
+) {
 	const endpoint = new URL(path, host).toString();
 	const res = await fetch(endpoint, {
-		method,
-		body: body ? JSON.stringify(body) : undefined,
+		method: 'POST',
+		body: JSON.stringify(body),
 		headers: {
 			'Content-Type': 'application/json',
 			...(headers || {}),
@@ -72,17 +66,16 @@ export async function requestSuiFromFaucetV0(input: {
 	recipient: string;
 	headers?: HeadersInit;
 }): Promise<FaucetResponse> {
-	return faucetRequest({
-		host: input.host,
-		path: '/gas',
-		body: {
+	return faucetRequest(
+		input.host,
+		'/gas',
+		{
 			FixedAmountRequest: {
 				recipient: input.recipient,
 			},
 		},
-		headers: input.headers,
-		method: 'POST',
-	});
+		input.headers,
+	);
 }
 
 export async function requestSuiFromFaucetV1(input: {
@@ -90,17 +83,16 @@ export async function requestSuiFromFaucetV1(input: {
 	recipient: string;
 	headers?: HeadersInit;
 }): Promise<BatchFaucetResponse> {
-	return faucetRequest({
-		host: input.host,
-		path: '/v1/gas',
-		body: {
+	return faucetRequest(
+		input.host,
+		'/v1/gas',
+		{
 			FixedAmountRequest: {
 				recipient: input.recipient,
 			},
 		},
-		headers: input.headers,
-		method: 'POST',
-	});
+		input.headers,
+	);
 }
 
 export async function getFaucetRequestStatus(input: {
@@ -108,12 +100,16 @@ export async function getFaucetRequestStatus(input: {
 	taskId: string;
 	headers?: HeadersInit;
 }): Promise<BatchStatusFaucetResponse> {
-	return faucetRequest({
-		host: input.host,
-		path: `/v1/status/${input.taskId}`,
-		headers: input.headers,
-		method: 'GET',
-	});
+	return faucetRequest(
+		input.host,
+		'/v1/status',
+		{
+			task_id: {
+				task_id: input.taskId,
+			},
+		},
+		input.headers,
+	);
 }
 
 export function getFaucetHost(network: 'testnet' | 'devnet' | 'localnet') {

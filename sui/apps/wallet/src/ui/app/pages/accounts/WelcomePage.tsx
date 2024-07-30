@@ -1,6 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import { useAccountsFormContext } from '../../components/accounts/AccountsFormContext';
+import { ZkLoginButtons } from '../../components/accounts/ZkLoginButtons';
+import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
 import { Button } from '_app/shared/ButtonUI';
 import { Heading } from '_app/shared/heading';
 import { Text } from '_app/shared/text';
@@ -8,19 +13,13 @@ import Loading from '_components/loading';
 import Logo from '_components/logo';
 import { useFullscreenGuard, useInitializedGuard } from '_hooks';
 import WelcomeSplash from '_src/ui/assets/images/WelcomeSplash.svg';
-import { toast } from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
-
-import { useAccountsFormContext } from '../../components/accounts/AccountsFormContext';
-import { ZkLoginButtons } from '../../components/accounts/ZkLoginButtons';
-import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
 
 export function WelcomePage() {
 	const createAccountsMutation = useCreateAccountsMutation();
 	const isFullscreenGuardLoading = useFullscreenGuard(true);
 	const isInitializedLoading = useInitializedGuard(
 		false,
-		!(createAccountsMutation.isPending || createAccountsMutation.isSuccess),
+		!(createAccountsMutation.isLoading || createAccountsMutation.isSuccess),
 	);
 	const [, setAccountsFormValues] = useAccountsFormContext();
 	const navigate = useNavigate();
@@ -40,7 +39,7 @@ export function WelcomePage() {
 						</Text>
 					</div>
 				</div>
-				<div className="w-full h-full mt-3.5 flex justify-center items-center">
+				<div className="w-full h-full mt-3.5 flex justify-center">
 					<WelcomeSplash role="img" />
 				</div>
 				<div className="flex flex-col gap-3 mt-3.5 w-full items-center">
@@ -52,10 +51,10 @@ export function WelcomePage() {
 						buttonsDisabled={createAccountsMutation.isSuccess}
 						sourceFlow="Onboarding"
 						onButtonClick={async (provider) => {
-							setAccountsFormValues({ type: 'zkLogin', provider });
+							setAccountsFormValues({ type: 'zk', provider });
 							await createAccountsMutation.mutateAsync(
 								{
-									type: 'zkLogin',
+									type: 'zk',
 								},
 								{
 									onSuccess: () => {
@@ -75,7 +74,7 @@ export function WelcomePage() {
 						size="tall"
 						variant="secondary"
 						text="More Options"
-						disabled={createAccountsMutation.isPending || createAccountsMutation.isSuccess}
+						disabled={createAccountsMutation.isLoading || createAccountsMutation.isSuccess}
 					/>
 				</div>
 			</div>

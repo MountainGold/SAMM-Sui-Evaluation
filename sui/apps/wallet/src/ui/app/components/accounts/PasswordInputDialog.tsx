@@ -1,27 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_src/ui/app/shared/ButtonUI';
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from '_src/ui/app/shared/Dialog';
 import { useZodForm } from '@mysten/core';
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { v4 as uuidV4 } from 'uuid';
 import { z } from 'zod';
-
-import { useAccountSources } from '../../hooks/useAccountSources';
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
-import { PasswordInput } from '../../shared/forms/controls/PasswordInput';
+import { Link } from '../../shared/Link';
 import { Form } from '../../shared/forms/Form';
 import FormField from '../../shared/forms/FormField';
-import { Link } from '../../shared/Link';
+import { PasswordInput } from '../../shared/forms/controls/PasswordInput';
+import { Button } from '_src/ui/app/shared/ButtonUI';
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogFooter,
+	DialogTitle,
+	DialogDescription,
+} from '_src/ui/app/shared/Dialog';
 
 const formSchema = z.object({
 	password: z.string().nonempty('Required'),
@@ -65,9 +63,6 @@ export function PasswordModalDialog({
 	} = form;
 	const backgroundService = useBackgroundClient();
 	const [formID] = useState(() => uuidV4());
-	const { data: allAccountsSources } = useAccountSources();
-	const hasMnemonicAccountsSources =
-		allAccountsSources?.some(({ type }) => type === 'mnemonic') || false;
 	return (
 		<Dialog open={open}>
 			<DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
@@ -83,7 +78,7 @@ export function PasswordModalDialog({
 					onSubmit={async ({ password }) => {
 						try {
 							if (verify) {
-								await backgroundService.verifyPassword({ password });
+								await backgroundService.verifyPassword(password);
 							}
 							try {
 								await onSubmit(password);
@@ -110,7 +105,7 @@ export function PasswordModalDialog({
 				<DialogFooter>
 					<div className="flex flex-col gap-3">
 						<div className="flex gap-2.5">
-							<Button variant="outline" size="tall" text={cancelText} onClick={onClose} />
+							<Button variant="outline" size="tall" text={cancelText} onClick={() => onClose()} />
 							<Button
 								type="submit"
 								form={formID}
@@ -121,14 +116,13 @@ export function PasswordModalDialog({
 								text={confirmText}
 							/>
 						</div>
-						{showForgotPassword && hasMnemonicAccountsSources ? (
+						{showForgotPassword ? (
 							<Link
 								color="steelDark"
 								weight="medium"
 								size="bodySmall"
 								text="Forgot Password?"
-								to="/accounts/forgot-password"
-								onClick={onClose}
+								to="/account/forgot-password"
 							/>
 						) : null}
 					</div>

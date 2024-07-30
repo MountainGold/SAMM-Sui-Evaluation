@@ -7,7 +7,7 @@ type QredoConnectInput = {
 	service: string;
 	apiUrl: string;
 	token: string;
-	workspace: string;
+	organization: string;
 };
 type QredoConnectFeature = {
 	'qredo:connect': {
@@ -20,9 +20,10 @@ type QredoConnectWallet = WalletWithFeatures<Partial<QredoConnectFeature>>;
 export function QredoConnectButton() {
 	const { wallets } = useWalletKit();
 	const selectedWallet = wallets.filter(
-		(aWallet) => !!(aWallet as QredoConnectWallet).features['qredo:connect'],
+		(aWallet) =>
+			'wallet' in aWallet && !!(aWallet.wallet as QredoConnectWallet).features['qredo:connect'],
 	)[0];
-	if (!selectedWallet) {
+	if (!selectedWallet || !('wallet' in selectedWallet)) {
 		return (
 			// eslint-disable-next-line react/jsx-no-target-blank
 			<a
@@ -33,7 +34,7 @@ export function QredoConnectButton() {
 			</a>
 		);
 	}
-	const qredoConnectWallet = selectedWallet as QredoConnectWallet;
+	const qredoConnectWallet = selectedWallet.wallet as QredoConnectWallet;
 	return (
 		<button
 			onClick={async () => {
@@ -42,7 +43,7 @@ export function QredoConnectButton() {
 						service: 'qredo-testing',
 						apiUrl: 'http://localhost:8080/connect/sui',
 						token: 'aToken',
-						workspace: 'org1',
+						organization: 'org1',
 					});
 				} catch (e) {
 					console.log(e);

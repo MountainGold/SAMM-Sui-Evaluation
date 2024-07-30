@@ -1,10 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { beforeAll, describe, expect, it } from 'vitest';
-
-import { TransactionBlock } from '../../src/builder';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { normalizeSuiAddress, SUI_TYPE_ARG } from '../../src/utils';
+import { SuiObjectData } from '../../src/client';
+import { TransactionBlock } from '../../src/builder';
 import { setup, TestToolbox } from './utils/setup';
 
 describe('Object Reading API', () => {
@@ -23,11 +23,12 @@ describe('Object Reading API', () => {
 
 	it('Get Object', async () => {
 		const gasObjects = await toolbox.getGasObjectsOwnedByAddress();
-		expect(gasObjects.data.length).to.greaterThan(0);
+		expect(gasObjects.length).to.greaterThan(0);
 		const objectInfos = await Promise.all(
-			gasObjects.data.map((gasObject) => {
+			gasObjects.map((gasObject) => {
+				const details = gasObject.data as SuiObjectData;
 				return toolbox.client.getObject({
-					id: gasObject.coinObjectId,
+					id: details.objectId,
 					options: { showType: true },
 				});
 			}),
@@ -39,9 +40,10 @@ describe('Object Reading API', () => {
 
 	it('Get Objects', async () => {
 		const gasObjects = await toolbox.getGasObjectsOwnedByAddress();
-		expect(gasObjects.data.length).to.greaterThan(0);
-		const gasObjectIds = gasObjects.data.map((gasObject) => {
-			return gasObject.coinObjectId;
+		expect(gasObjects.length).to.greaterThan(0);
+		const gasObjectIds = gasObjects.map((gasObject) => {
+			const details = gasObject.data as SuiObjectData;
+			return details.objectId;
 		});
 		const objectInfos = await toolbox.client.multiGetObjects({
 			ids: gasObjectIds,
@@ -50,7 +52,7 @@ describe('Object Reading API', () => {
 			},
 		});
 
-		expect(gasObjects.data.length).to.equal(objectInfos.length);
+		expect(gasObjects.length).to.equal(objectInfos.length);
 
 		objectInfos.forEach((objectInfo) => {
 			expect(objectInfo.data?.type).to.equal('0x2::coin::Coin<0x2::sui::SUI>');

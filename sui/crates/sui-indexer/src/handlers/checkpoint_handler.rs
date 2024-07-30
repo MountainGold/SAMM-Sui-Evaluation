@@ -135,6 +135,7 @@ where
     fn name(&self) -> &str {
         "checkpoint-transaction-and-epoch-indexer"
     }
+
     async fn process_checkpoint(&mut self, checkpoint_data: &CheckpointData) -> anyhow::Result<()> {
         info!(
             checkpoint_seq = checkpoint_data.checkpoint_summary.sequence_number(),
@@ -412,7 +413,7 @@ where
                 checkpoint_sequence_number: Some(*checkpoint_summary.sequence_number() as i64),
                 timestamp_ms: Some(checkpoint_summary.timestamp_ms as i64),
                 transaction_kind: tx.kind().name().to_owned(),
-                transaction_count: tx.kind().tx_count() as i64,
+                transaction_count: tx.kind().num_commands() as i64,
                 execution_success: fx.status().is_ok(),
                 gas_object_id: fx.gas_object().0 .0.to_string(),
                 gas_object_sequence: fx.gas_object().0 .1.value() as i64,
@@ -831,6 +832,7 @@ where
     fn name(&self) -> &str {
         "objects-indexer"
     }
+
     async fn process_checkpoint(&mut self, checkpoint_data: &CheckpointData) -> anyhow::Result<()> {
         let checkpoint_seq = *checkpoint_data.checkpoint_summary.sequence_number();
         info!(checkpoint_seq, "Objects received by indexing processor");
@@ -851,6 +853,7 @@ where
                     e
                 )
             });
+
         Ok(())
     }
 }

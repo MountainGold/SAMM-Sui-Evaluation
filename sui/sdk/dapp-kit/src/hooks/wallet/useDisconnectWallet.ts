@@ -1,18 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { UseMutationOptions, UseMutationResult } from '@tanstack/react-query';
+import type { UseMutationOptions } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
-
+import { useWalletContext } from '../../components/WalletProvider.js';
 import { walletMutationKeys } from '../../constants/walletMutationKeys.js';
 import { WalletNotConnectedError } from '../../errors/walletErrors.js';
-import { useCurrentWallet } from './useCurrentWallet.js';
-import { useWalletStore } from './useWalletStore.js';
-
-type UseDisconnectWalletError = WalletNotConnectedError | Error;
 
 type UseDisconnectWalletMutationOptions = Omit<
-	UseMutationOptions<void, UseDisconnectWalletError, void, unknown>,
+	UseMutationOptions<void, Error, void, unknown>,
 	'mutationFn'
 >;
 
@@ -22,13 +18,8 @@ type UseDisconnectWalletMutationOptions = Omit<
 export function useDisconnectWallet({
 	mutationKey,
 	...mutationOptions
-}: UseDisconnectWalletMutationOptions = {}): UseMutationResult<
-	void,
-	UseDisconnectWalletError,
-	void
-> {
-	const { currentWallet } = useCurrentWallet();
-	const setWalletDisconnected = useWalletStore((state) => state.setWalletDisconnected);
+}: UseDisconnectWalletMutationOptions = {}) {
+	const { currentWallet, storageAdapter, storageKey, dispatch } = useWalletContext();
 
 	return useMutation({
 		mutationKey: walletMutationKeys.disconnectWallet(mutationKey),
@@ -46,7 +37,18 @@ export function useDisconnectWallet({
 				console.error('Failed to disconnect the application from the current wallet.', error);
 			}
 
-			setWalletDisconnected();
+			dispatch({ type: 'wallet-disconnected' });
+
+			try {
+				await storageAdapter.remove(storageKey);
+			} catch (error) {
+				// We'll skip error handling here and just report the error to the console since deleting connection
+				// info isn't essential functionality and storage adapters can be plugged in by the consumer.
+				console.error(
+					'[dApp-kit] Error: Failed to remove wallet connection info from storage.',
+					error,
+				);
+			}
 		},
 		...mutationOptions,
 	});

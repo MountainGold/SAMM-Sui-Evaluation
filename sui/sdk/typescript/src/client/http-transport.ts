@@ -1,11 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Client, HTTPTransport, RequestManager } from '@open-rpc/client-js';
-
+import { RequestManager, HTTPTransport, Client } from '@open-rpc/client-js';
+import { PACKAGE_VERSION, TARGETED_RPC_VERSION } from '../version.js';
 import type { WebsocketClientOptions } from '../rpc/websocket-client.js';
 import { WebsocketClient } from '../rpc/websocket-client.js';
-import { PACKAGE_VERSION, TARGETED_RPC_VERSION } from '../version.js';
 
 /**
  * An object defining headers to be passed to the RPC server

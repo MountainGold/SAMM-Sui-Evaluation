@@ -83,16 +83,6 @@ fn register_fail_point_impl(
     })
 }
 
-fn clear_fail_point_impl(identifier: &'static str) {
-    with_fp_map(move |map| {
-        assert!(
-            map.remove(identifier).is_some(),
-            "fail point {:?} does not exist",
-            identifier
-        );
-    })
-}
-
 pub fn register_fail_point(identifier: &'static str, callback: impl Fn() + Sync + Send + 'static) {
     register_fail_point_impl(
         identifier,
@@ -107,7 +97,7 @@ pub fn register_fail_point_async<F>(
     identifier: &'static str,
     callback: impl Fn() -> F + Sync + Send + 'static,
 ) where
-    F: Future<Output = ()> + Send + 'static,
+    F: Future<Output = ()> + Sync + Send + 'static,
 {
     register_fail_point_impl(identifier, Arc::new(move || Some(Box::pin(callback()))));
 }
@@ -123,10 +113,6 @@ pub fn register_fail_points(
     for id in identifiers {
         register_fail_point_impl(id, cb.clone());
     }
-}
-
-pub fn clear_fail_point(identifier: &'static str) {
-    clear_fail_point_impl(identifier);
 }
 
 #[cfg(any(msim, fail_points))]

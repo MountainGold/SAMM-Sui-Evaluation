@@ -85,7 +85,6 @@ fn build_packages(
 ) {
     let config = MoveBuildConfig {
         generate_docs: true,
-        warnings_are_errors: true,
         install_dir: Some(PathBuf::from(".")),
         ..Default::default()
     };
@@ -104,7 +103,6 @@ fn build_packages(
     let config = MoveBuildConfig {
         generate_docs: true,
         test_mode: true,
-        warnings_are_errors: true,
         install_dir: Some(PathBuf::from(".")),
         ..Default::default()
     };

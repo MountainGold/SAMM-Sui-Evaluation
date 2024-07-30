@@ -34,14 +34,13 @@ use std::collections::BTreeMap;
 
 use super::{
     LinterDiagCategory, FREEZE_FUN, INVALID_LOC, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
-    RECEIVE_FUN, SHARE_FUN, SUI_PKG_NAME, TRANSFER_FUN, TRANSFER_MOD_NAME,
+    SHARE_FUN, SUI_PKG_NAME, TRANSFER_FUN, TRANSFER_MOD_NAME,
 };
 
 const PRIVATE_OBJ_FUNCTIONS: &[(&str, &str, &str)] = &[
     (SUI_PKG_NAME, TRANSFER_MOD_NAME, TRANSFER_FUN),
     (SUI_PKG_NAME, TRANSFER_MOD_NAME, SHARE_FUN),
     (SUI_PKG_NAME, TRANSFER_MOD_NAME, FREEZE_FUN),
-    (SUI_PKG_NAME, TRANSFER_MOD_NAME, RECEIVE_FUN),
 ];
 
 const CUSTOM_STATE_CHANGE_DIAG: DiagnosticInfo = custom(
@@ -92,7 +91,7 @@ impl SimpleAbsIntConstructor for CustomStateChangeVerifier {
         _init_state: &mut <Self::AI<'a> as SimpleAbsInt>::State,
     ) -> Option<Self::AI<'a>> {
         let Some(_) = &context.module else {
-            return None;
+            return None
         };
         let MemberName::Function(fn_name) = context.member else {
             return None;
@@ -145,10 +144,8 @@ impl SimpleAbsInt for CustomStateChangeVerifierAI {
                     ("transfer", "transferred")
                 } else if *fname == SHARE_FUN {
                     ("share", "shared")
-                } else if *fname == FREEZE_FUN {
-                    ("freeze", "frozen")
                 } else {
-                    ("receive", "received")
+                    ("freeze", "frozen")
                 };
                 let uid_msg = format!(
                     "Instances of a type with a store ability can be {action} using \

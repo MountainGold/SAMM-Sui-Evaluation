@@ -1,19 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { beforeAll, describe, expect, it } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 
-import { DeepBookClient } from '../../src';
-import { PoolSummary } from '../../src/types';
 import {
-	DEFAULT_LOT_SIZE,
-	DEFAULT_TICK_SIZE,
-	executeTransactionBlock,
-	setupDeepbookAccount,
-	setupPool,
-	setupSuiClient,
 	TestToolbox,
+	setupSuiClient,
+	setupPool,
+	setupDeepbookAccount,
+	executeTransactionBlock,
+	DEFAULT_TICK_SIZE,
+	DEFAULT_LOT_SIZE,
 } from './setup';
+import { PoolSummary } from '../../src/types';
+import { DeepBookClient } from '../../src';
 
 const DEPOSIT_AMOUNT = 100n;
 const LIMIT_ORDER_PRICE = 1n;

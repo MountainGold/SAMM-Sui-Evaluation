@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Wallet, WalletWithFeatures } from '@wallet-standard/core';
-
 import { MinimallyRequiredFeatures, WalletWithSuiFeatures } from './features';
 
 // These features are absolutely required for wallets to function in the Sui ecosystem.

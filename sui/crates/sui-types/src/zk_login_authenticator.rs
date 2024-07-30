@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     base_types::{EpochId, SuiAddress},
-    crypto::{DefaultHash, Signature, SignatureScheme, SuiSignature},
-    digests::ZKLoginInputsDigest,
+    crypto::{Signature, SignatureScheme, SuiSignature},
     error::{SuiError, SuiResult},
     signature::{AuthenticatorTrait, VerifyParams},
 };
 use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
-use fastcrypto_zkp::bn254::zk_login::OIDCProvider;
+use fastcrypto_zkp::bn254::zk_login::{AddressParams, OIDCProvider};
 use fastcrypto_zkp::bn254::{zk_login::ZkLoginInputs, zk_login_api::verify_zk_login};
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
@@ -24,7 +23,6 @@ mod zk_login_authenticator_test;
 
 /// An zk login authenticator with all the necessary fields.
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ZkLoginAuthenticator {
     inputs: ZkLoginInputs,
     max_epoch: EpochId,
@@ -34,13 +32,6 @@ pub struct ZkLoginAuthenticator {
 }
 
 impl ZkLoginAuthenticator {
-    pub fn hash_inputs(&self) -> ZKLoginInputsDigest {
-        use fastcrypto::hash::HashFunction;
-        let mut hasher = DefaultHash::default();
-        hasher.update(bcs::to_bytes(&self.inputs).expect("serde should not fail"));
-        ZKLoginInputsDigest::new(hasher.finalize().into())
-    }
-
     /// Create a new [struct ZkLoginAuthenticator] with necessary fields.
     pub fn new(inputs: ZkLoginInputs, max_epoch: EpochId, user_signature: Signature) -> Self {
         Self {
@@ -59,8 +50,8 @@ impl ZkLoginAuthenticator {
         self.inputs.get_address_seed()
     }
 
-    pub fn get_iss(&self) -> &str {
-        self.inputs.get_iss()
+    pub fn get_address_params(&self) -> AddressParams {
+        self.inputs.get_address_params()
     }
 }
 
@@ -92,9 +83,8 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
         Ok(())
     }
 
-    /// This verifies the addresss derivation and ephemeral signature.
-    /// It does not verify the zkLogin inputs (that includes the expensive zk proof verify).
-    fn verify_uncached_checks<T>(
+    /// Verify an intent message of a transaction with an zk login authenticator.
+    fn verify_claims<T>(
         &self,
         intent_msg: &IntentMessage<T>,
         author: SuiAddress,
@@ -103,23 +93,19 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
     where
         T: Serialize,
     {
-        if aux_verify_data.verify_legacy_zklogin_address {
-            if author != self.try_into()? && author != SuiAddress::legacy_try_from(self)? {
-                return Err(SuiError::InvalidAddress);
-            }
-        } else if author != self.try_into()? {
+        // Verify the author of the transaction is indeed computed from address seed,
+        // iss, aud and key claim (e.g. sub).
+        if author != self.into() {
             return Err(SuiError::InvalidAddress);
         }
 
-        if !aux_verify_data.supported_providers.is_empty()
-            && !aux_verify_data.supported_providers.contains(
-                &OIDCProvider::from_iss(self.inputs.get_iss()).map_err(|_| {
-                    SuiError::InvalidSignature {
-                        error: "Unknown provider".to_string(),
-                    }
-                })?,
-            )
-        {
+        if !aux_verify_data.supported_providers.contains(
+            &OIDCProvider::from_iss(self.inputs.get_iss()).map_err(|_| {
+                SuiError::InvalidSignature {
+                    error: "Unknown provider".to_string(),
+                }
+            })?,
+        ) {
             return Err(SuiError::InvalidSignature {
                 error: format!("OIDC provider not supported: {}", self.inputs.get_iss()),
             });
@@ -135,20 +121,6 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
                 error: "Ephermal signature verify failed".to_string(),
             });
         }
-        Ok(())
-    }
-
-    /// Verify an intent message of a transaction with an zk login authenticator.
-    fn verify_claims<T>(
-        &self,
-        intent_msg: &IntentMessage<T>,
-        author: SuiAddress,
-        aux_verify_data: &VerifyParams,
-    ) -> SuiResult
-    where
-        T: Serialize,
-    {
-        self.verify_uncached_checks(intent_msg, author, aux_verify_data)?;
 
         // Use flag || pk_bytes.
         let mut extended_pk_bytes = vec![self.user_signature.scheme().flag()];

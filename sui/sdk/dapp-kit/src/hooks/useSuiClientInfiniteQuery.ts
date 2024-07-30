@@ -1,81 +1,67 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiClient } from '@mysten/sui.js/client';
-import type {
-	InfiniteData,
-	UseInfiniteQueryOptions,
-	UseInfiniteQueryResult,
-} from '@tanstack/react-query';
+import type { UseInfiniteQueryOptions } from '@tanstack/react-query';
 import { useInfiniteQuery } from '@tanstack/react-query';
-
-import type { PartialBy } from '../types/utilityTypes.js';
 import { useSuiClientContext } from './useSuiClient.js';
+import type { SuiClient } from '@mysten/sui.js/client';
 
 interface PaginatedResult {
 	data?: unknown;
 	nextCursor?: unknown;
 	hasNextPage: boolean;
 }
-
 export type SuiRpcPaginatedMethodName = {
 	[K in keyof SuiClient]: SuiClient[K] extends (input: any) => Promise<PaginatedResult> ? K : never;
 }[keyof SuiClient];
 
 export type SuiRpcPaginatedMethods = {
-	[K in SuiRpcPaginatedMethodName]: SuiClient[K] extends (
-		input: infer Params,
-	) => Promise<infer Result extends { nextCursor?: infer Cursor | null }>
+	[K in SuiRpcPaginatedMethodName]: SuiClient[K] extends (input: infer P) => Promise<{
+		data?: infer R;
+		nextCursor?: infer Cursor | null;
+		hasNextPage: boolean;
+	}>
 		? {
 				name: K;
-				result: Result;
-				params: Params;
+				result: R;
+				params: P;
 				cursor: Cursor;
 		  }
 		: never;
 };
 
-export type UseSuiClientInfiniteQueryOptions<
-	T extends keyof SuiRpcPaginatedMethods,
-	TData,
-> = PartialBy<
-	Omit<
-		UseInfiniteQueryOptions<
-			SuiRpcPaginatedMethods[T]['result'],
-			Error,
-			TData,
-			SuiRpcPaginatedMethods[T]['result'],
-			unknown[]
-		>,
-		'queryFn' | 'initialPageParam' | 'getNextPageParam'
+export type UseSuiClientInfiniteQueryOptions<T extends keyof SuiRpcPaginatedMethods> = Omit<
+	UseInfiniteQueryOptions<
+		SuiRpcPaginatedMethods[T]['result'],
+		Error,
+		SuiRpcPaginatedMethods[T]['result'],
+		SuiRpcPaginatedMethods[T]['result'],
+		unknown[]
 	>,
-	'queryKey'
+	'queryFn'
 >;
 
-export function useSuiClientInfiniteQuery<
-	T extends keyof SuiRpcPaginatedMethods,
-	TData = InfiniteData<SuiRpcPaginatedMethods[T]['result']>,
->(
-	method: T,
-	params: SuiRpcPaginatedMethods[T]['params'],
+export function useSuiClientInfiniteQuery<T extends keyof SuiRpcPaginatedMethods>(
 	{
-		queryKey = [],
-		enabled = !!params,
-		...options
-	}: UseSuiClientInfiniteQueryOptions<T, TData> = {},
-): UseInfiniteQueryResult<TData, Error> {
+		method,
+		params,
+	}: {
+		method: T;
+		params: SuiRpcPaginatedMethods[T]['params'];
+	},
+	{ queryKey, enabled = !!params, ...options }: UseSuiClientInfiniteQueryOptions<T> = {},
+) {
 	const suiContext = useSuiClientContext();
 
 	return useInfiniteQuery({
 		...options,
-		initialPageParam: null,
-		queryKey: [suiContext.network, method, params, ...queryKey],
+		queryKey: [suiContext.network, method, params],
 		enabled,
-		queryFn: ({ pageParam }) =>
-			suiContext.client[method]({
-				...(params ?? {}),
-				cursor: pageParam,
-			} as never),
-		getNextPageParam: ({ nextCursor }) => nextCursor ?? null,
+		queryFn: async () => {
+			return await suiContext.client[method](params as never);
+		},
+		getNextPageParam: (lastPage) => {
+			return (lastPage as PaginatedResult).nextCursor ?? null;
+		},
 	});
 }

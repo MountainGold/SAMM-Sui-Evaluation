@@ -1,14 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '_src/ui/app/shared/text';
 import { useFormatCoin, useResolveSuiNSName } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useBalance } from '@mysten/dapp-kit';
 import { CheckFill16 } from '@mysten/icons';
-import { formatAddress, SUI_TYPE_ARG } from '@mysten/sui.js/utils';
-import cl from 'clsx';
+import { SUI_TYPE_ARG, formatAddress } from '@mysten/sui.js/utils';
+import cl from 'classnames';
 
 import { useCoinsReFetchingConfig } from '../../hooks';
+import { Text } from '_src/ui/app/shared/text';
 
 type LedgerAccountRowProps = {
 	isSelected: boolean;
@@ -18,8 +18,7 @@ type LedgerAccountRowProps = {
 export function LedgerAccountRow({ isSelected, address }: LedgerAccountRowProps) {
 	const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
 
-	const { data: coinBalance } = useSuiClientQuery(
-		'getBalance',
+	const { data: coinBalance } = useBalance(
 		{
 			coinType: SUI_TYPE_ARG,
 			owner: address,

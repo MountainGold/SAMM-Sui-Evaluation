@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-import { useIsWalletDefiEnabled } from '_app/hooks/useIsWalletDefiEnabled';
-import { Heading } from '_src/ui/app/shared/heading';
-import { Text } from '_src/ui/app/shared/text';
+
 import { useFormatCoin, useSuiCoinData } from '@mysten/core';
 import { SUI_DECIMALS } from '@mysten/sui.js/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
+import { CoinIcon } from '_src/ui/app/components/coin-icon';
+import { Heading } from '_src/ui/app/shared/heading';
+import { Text } from '_src/ui/app/shared/text';
 
 export type CoinProps = {
 	type: string;
@@ -14,7 +15,6 @@ export type CoinProps = {
 };
 
 export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
-	const isDefiWalletEnabled = useIsWalletDefiEnabled();
 	const [formatted, symbol] = useFormatCoin(walletBalance, type);
 	const { data } = useSuiCoinData();
 	const { currentPrice } = data || {};
@@ -34,6 +34,7 @@ export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
 	return (
 		<div className="flex flex-col gap-1 items-center justify-center">
 			<div className="flex items-center justify-center gap-2">
+				<CoinIcon fill="suiPrimary2023" coinType={type} size="sm" />
 				<Heading leading="none" variant="heading1" weight="bold" color="gray-90">
 					{formatted}
 				</Heading>
@@ -44,11 +45,7 @@ export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
 			</div>
 			<div>
 				{walletBalanceInUsd ? (
-					<Text
-						variant="caption"
-						weight="medium"
-						color={isDefiWalletEnabled ? 'hero-darkest' : 'steel'}
-					>
+					<Text variant="caption" weight="medium" color="steel">
 						{walletBalanceInUsd}
 					</Text>
 				) : null}

@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useLatestSuiSystemState, useRpcApiVersion } from '@mysten/dapp-kit';
 import { useContext } from 'react';
 
 import { NetworkContext } from '../../context';
@@ -11,8 +11,8 @@ import { ampli } from '~/utils/analytics/ampli';
 
 export default function WrappedNetworkSelect() {
 	const [network, setNetwork] = useContext(NetworkContext);
-	const { data } = useSuiClientQuery('getLatestSuiSystemState');
-	const { data: binaryVersion } = useSuiClientQuery('getRpcApiVersion');
+	const { data } = useLatestSuiSystemState();
+	const { data: binaryVersion } = useRpcApiVersion({});
 
 	const networks = [
 		{ id: Network.MAINNET, label: 'Mainnet' },

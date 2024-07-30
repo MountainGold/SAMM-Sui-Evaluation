@@ -19,7 +19,6 @@ import {
 } from '@mysten/wallet-standard';
 
 import { localStorageAdapter, StorageAdapter } from './storage';
-
 export * from './storage';
 
 export const DEFAULT_FEATURES: (keyof WalletWithSuiFeatures['features'])[] = [

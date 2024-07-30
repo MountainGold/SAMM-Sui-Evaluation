@@ -1,12 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use futures::{future::join_all, StreamExt};
+use futures::future::join_all;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::ws_client::WsClient;
 use jsonrpsee::ws_client::WsClientBuilder;
 use rand::{distributions::*, rngs::OsRng, seq::SliceRandom};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
@@ -17,9 +17,7 @@ use sui_config::{Config, SUI_CLIENT_CONFIG, SUI_NETWORK_CONFIG};
 use sui_config::{NodeConfig, PersistedConfig, SUI_KEYSTORE_FILENAME};
 use sui_core::authority_aggregator::AuthorityAggregator;
 use sui_core::authority_client::NetworkAuthorityClient;
-use sui_json_rpc_types::{
-    SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse, TransactionFilter,
-};
+use sui_json_rpc_types::SuiTransactionBlockResponse;
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use sui_node::SuiNodeHandle;
 use sui_protocol_config::{ProtocolVersion, SupportedProtocolVersions};
@@ -48,13 +46,10 @@ use sui_types::object::Object;
 use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait;
 use sui_types::sui_system_state::SuiSystemState;
 use sui_types::sui_system_state::SuiSystemStateTrait;
-use sui_types::transaction::{
-    CertifiedTransaction, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
-};
+use sui_types::transaction::{Transaction, TransactionData};
 use tokio::time::{timeout, Instant};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::info;
-
 const NUM_VALIDATOR: usize = 4;
 
 pub struct FullNodeHandle {
@@ -277,34 +272,6 @@ impl TestCluster {
         .expect("Timed out waiting for cluster to target epoch")
     }
 
-    pub async fn wait_for_protocol_version(
-        &self,
-        target_protocol_version: ProtocolVersion,
-    ) -> SuiSystemState {
-        self.wait_for_protocol_version_with_timeout(
-            target_protocol_version,
-            Duration::from_secs(60),
-        )
-        .await
-    }
-
-    pub async fn wait_for_protocol_version_with_timeout(
-        &self,
-        target_protocol_version: ProtocolVersion,
-        timeout_dur: Duration,
-    ) -> SuiSystemState {
-        timeout(timeout_dur, async move {
-            loop {
-                let system_state = self.wait_for_epoch(None).await;
-                if system_state.protocol_version() >= target_protocol_version.as_u64() {
-                    return system_state;
-                }
-            }
-        })
-        .await
-        .expect("Timed out waiting for cluster to target protocol version")
-    }
-
     /// Ask 2f+1 validators to close epoch actively, and wait for the entire network to reach the next
     /// epoch. This requires waiting for both the fullnode and all validators to reach the next epoch.
     pub async fn trigger_reconfiguration(&self) {
@@ -408,51 +375,10 @@ impl TestCluster {
         }
     }
 
-    pub async fn wait_for_authenticator_state_update(&self) {
-        timeout(
-            Duration::from_secs(60),
-            self.fullnode_handle.sui_node.with_async(|node| async move {
-                let mut txns = node.state().subscription_handler.subscribe_transactions(
-                    TransactionFilter::ChangedObject(ObjectID::from_hex_literal("0x7").unwrap()),
-                );
-                let state = node.state();
-
-                while let Some(tx) = txns.next().await {
-                    let digest = *tx.transaction_digest();
-                    let tx = state
-                        .database
-                        .get_transaction_block(&digest)
-                        .unwrap()
-                        .unwrap();
-                    match &tx.data().intent_message().value.kind() {
-                        TransactionKind::EndOfEpochTransaction(_) => (),
-                        TransactionKind::AuthenticatorStateUpdate(_) => break,
-                        _ => panic!("{:?}", tx),
-                    }
-                }
-            }),
-        )
-        .await
-        .expect("Timed out waiting for authenticator state update");
-    }
-
     pub async fn test_transaction_builder(&self) -> TestTransactionBuilder {
         let (sender, gas) = self.wallet.get_one_gas_object().await.unwrap().unwrap();
-        self.test_transaction_builder_with_gas_object(sender, gas)
-            .await
-    }
-
-    pub async fn test_transaction_builder_with_gas_object(
-        &self,
-        sender: SuiAddress,
-        gas: ObjectRef,
-    ) -> TestTransactionBuilder {
         let rgp = self.get_reference_gas_price().await;
         TestTransactionBuilder::new(sender, gas, rgp)
-    }
-
-    pub fn sign_transaction(&self, tx_data: &TransactionData) -> Transaction {
-        self.wallet.sign_transaction(tx_data)
     }
 
     pub async fn sign_and_execute_transaction(
@@ -482,7 +408,7 @@ impl TestCluster {
     pub async fn execute_transaction_return_raw_effects(
         &self,
         tx: Transaction,
-    ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
+    ) -> anyhow::Result<(TransactionEffects, TransactionEvents, Vec<Object>)> {
         let results = self
             .submit_transaction_to_validators(tx.clone(), &self.get_validator_pubkeys())
             .await?;
@@ -496,14 +422,6 @@ impl TestCluster {
             .with(|node| node.clone_authority_aggregator().unwrap())
     }
 
-    pub async fn create_certificate(
-        &self,
-        tx: Transaction,
-    ) -> anyhow::Result<CertifiedTransaction> {
-        let agg = self.authority_aggregator();
-        Ok(agg.process_transaction(tx).await?.into_cert_for_testing())
-    }
-
     /// Execute a transaction on specified list of validators, and bypassing authority aggregator.
     /// This allows us to obtain the return value directly from validators, so that we can access more
     /// information directly such as the original effects, events and extra objects returned.
@@ -513,7 +431,7 @@ impl TestCluster {
         &self,
         tx: Transaction,
         pubkeys: &[AuthorityName],
-    ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
+    ) -> anyhow::Result<(TransactionEffects, TransactionEvents, Vec<Object>)> {
         let agg = self.authority_aggregator();
         let certificate = agg.process_transaction(tx).await?.into_cert_for_testing();
         let replies = loop {
@@ -536,6 +454,10 @@ impl TestCluster {
             let replies: Vec<_> = futures::future::join_all(futures)
                 .await
                 .into_iter()
+                // Remove all `FailedToHearBackFromConsensus` replies. Note that the original Sui error type
+                // `SuiError::FailedToHearBackFromConsensus(..)` is lost when the message is sent through the
+                // network (it is replaced by `RpcError`). As a result, the following filter doesn't work:
+                // `.filter(|result| !matches!(result, Err(SuiError::FailedToHearBackFromConsensus(..))))`.
                 .filter(|result| match result {
                     Err(e) => !e.to_string().contains("deadline has elapsed"),
                     _ => true,
@@ -550,17 +472,20 @@ impl TestCluster {
         let replies = replies?;
         let mut all_effects = HashMap::new();
         let mut all_events = HashMap::new();
+        let mut all_objects = HashSet::new();
         for reply in replies {
             let effects = reply.signed_effects.into_data();
             all_effects.insert(effects.digest(), effects);
             all_events.insert(reply.events.digest(), reply.events);
-            // reply.fastpath_input_objects is unused.
+            all_objects.insert(reply.fastpath_input_objects);
         }
         assert_eq!(all_effects.len(), 1);
         assert_eq!(all_events.len(), 1);
+        assert_eq!(all_objects.len(), 1);
         Ok((
             all_effects.into_values().next().unwrap(),
             all_events.into_values().next().unwrap(),
+            all_objects.into_iter().next().unwrap(),
         ))
     }
 
@@ -651,9 +576,7 @@ pub struct TestClusterBuilder {
     db_checkpoint_config_validators: DBCheckpointConfig,
     db_checkpoint_config_fullnodes: DBCheckpointConfig,
     num_unpruned_validators: Option<usize>,
-    jwk_fetch_interval: Option<Duration>,
     config_dir: Option<PathBuf>,
-    default_jwks: bool,
 }
 
 impl TestClusterBuilder {
@@ -670,9 +593,7 @@ impl TestClusterBuilder {
             db_checkpoint_config_validators: DBCheckpointConfig::default(),
             db_checkpoint_config_fullnodes: DBCheckpointConfig::default(),
             num_unpruned_validators: None,
-            jwk_fetch_interval: None,
             config_dir: None,
-            default_jwks: false,
         }
     }
 
@@ -749,11 +670,6 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_jwk_fetch_interval(mut self, i: Duration) -> Self {
-        self.jwk_fetch_interval = Some(i);
-        self
-    }
-
     pub fn with_fullnode_supported_protocol_versions_config(
         mut self,
         c: SupportedProtocolVersions,
@@ -806,41 +722,7 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_default_jwks(mut self) -> Self {
-        self.default_jwks = true;
-        self
-    }
-
     pub async fn build(mut self) -> TestCluster {
-        // All test clusters receive a continuous stream of random JWKs.
-        // If we later use zklogin authenticated transactions in tests we will need to supply
-        // valid JWKs as well.
-        #[cfg(msim)]
-        if !self.default_jwks {
-            sui_node::set_jwk_injector(Arc::new(|_authority, provider| {
-                use fastcrypto_zkp::bn254::zk_login::{JwkId, JWK};
-                use rand::Rng;
-
-                // generate random (and possibly conflicting) id/key pairings.
-                let id_num = rand::thread_rng().gen_range(1..=4);
-                let key_num = rand::thread_rng().gen_range(1..=4);
-
-                let id = JwkId {
-                    iss: provider.get_config().iss,
-                    kid: format!("kid{}", id_num),
-                };
-
-                let jwk = JWK {
-                    kty: "kty".to_string(),
-                    e: "e".to_string(),
-                    n: format!("n{}", key_num),
-                    alg: "alg".to_string(),
-                };
-
-                Ok(vec![(id, jwk)])
-            }));
-        }
-
         let swarm = self.start_swarm().await.unwrap();
         let working_dir = swarm.dir();
 
@@ -906,10 +788,6 @@ impl TestClusterBuilder {
         }
         if let Some(num_unpruned_validators) = self.num_unpruned_validators {
             builder = builder.with_num_unpruned_validators(num_unpruned_validators);
-        }
-
-        if let Some(jwk_fetch_interval) = self.jwk_fetch_interval {
-            builder = builder.with_jwk_fetch_interval(jwk_fetch_interval);
         }
 
         if let Some(config_dir) = self.config_dir.take() {

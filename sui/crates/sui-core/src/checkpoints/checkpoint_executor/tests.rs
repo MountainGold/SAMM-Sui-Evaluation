@@ -38,10 +38,12 @@ pub async fn test_checkpoint_executor_crash_recovery() {
         CommitteeFixture,
     ) = init_executor_test(buffer_size, checkpoint_store.clone()).await;
 
-    assert!(checkpoint_store
-        .get_highest_executed_checkpoint_seq_number()
-        .unwrap()
-        .is_none());
+    assert!(matches!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap(),
+        None,
+    ));
     let checkpoints = sync_new_checkpoints(
         &checkpoint_store,
         &checkpoint_sender,
@@ -125,10 +127,12 @@ pub async fn test_checkpoint_executor_cross_epoch() {
     let epoch = epoch_store.epoch();
     assert_eq!(epoch, 0);
 
-    assert!(checkpoint_store
-        .get_highest_executed_checkpoint_seq_number()
-        .unwrap()
-        .is_none());
+    assert!(matches!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap(),
+        None,
+    ));
 
     // sync 20 checkpoints
     let cold_start_checkpoints = sync_new_checkpoints(
@@ -160,7 +164,7 @@ pub async fn test_checkpoint_executor_cross_epoch() {
     );
 
     authority_state
-        .get_checkpoint_store()
+        .checkpoint_store
         .epoch_last_checkpoint_map
         .insert(
             &end_of_epoch_0_checkpoint.epoch,
@@ -168,7 +172,7 @@ pub async fn test_checkpoint_executor_cross_epoch() {
         )
         .unwrap();
     authority_state
-        .get_checkpoint_store()
+        .checkpoint_store
         .certified_checkpoints
         .insert(
             end_of_epoch_0_checkpoint.sequence_number(),
@@ -287,10 +291,12 @@ pub async fn test_reconfig_crash_recovery() {
     )
     .await;
 
-    assert!(checkpoint_store
-        .get_highest_executed_checkpoint_seq_number()
-        .unwrap()
-        .is_none());
+    assert!(matches!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap(),
+        None,
+    ));
 
     // sync 1 checkpoint
     let checkpoint = sync_new_checkpoints(

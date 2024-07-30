@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import type { SignedTransaction } from '@mysten/sui.js';
 import { TransactionBlock } from '@mysten/sui.js/transactions';
 import type { IdentifierString, WalletAccount } from '@wallet-standard/core';
 
@@ -32,9 +33,4 @@ export interface SuiSignTransactionBlockInput {
 }
 
 /** Output of signing transactions. */
-export interface SuiSignTransactionBlockOutput extends SignedTransactionBlock {}
-
-export interface SignedTransactionBlock {
-	transactionBlockBytes: string;
-	signature: string;
-}
+export interface SuiSignTransactionBlockOutput extends SignedTransaction {}

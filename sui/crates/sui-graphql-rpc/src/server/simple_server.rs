@@ -1,18 +1,61 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::ServerConfig;
-use crate::server::builder::Server;
+use crate::context_data::data_provider::DataProvider;
+use crate::context_data::sui_sdk_data_provider::{lru_cache_data_loader, sui_sdk_client_v0};
+use crate::extensions::logger::Logger;
+use crate::extensions::timeout::Timeout;
+use crate::server::builder::ServerBuilder;
 
-pub async fn start_example_server(server_config: &ServerConfig) -> Result<(), crate::error::Error> {
-    println!("Starting server with config: {:?}", server_config);
+use std::default::Default;
 
-    let server = Server::from_config(server_config).await?;
+use super::builder::{DEFAULT_HOST, DEFAULT_PORT};
 
-    println!(
-        "Launch GraphiQL IDE at: http://{}",
-        server_config.connection.server_address()
-    );
+pub struct ServerConfig {
+    pub port: u16,
+    pub host: String,
+    pub rpc_url: String,
+}
 
-    server.run().await
+impl std::default::Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            port: DEFAULT_PORT,
+            host: DEFAULT_HOST.to_string(),
+            rpc_url: "https://fullnode.testnet.sui.io:443/".to_string(),
+        }
+    }
+}
+
+impl ServerConfig {
+    pub fn url(&self) -> String {
+        format!("http://{}", self.address())
+    }
+
+    pub fn address(&self) -> String {
+        format!("{}:{}", self.host, self.port)
+    }
+}
+
+pub async fn start_example_server(config: Option<ServerConfig>) {
+    let config = config.unwrap_or_default();
+    let _guard = telemetry_subscribers::TelemetryConfig::new()
+        .with_env()
+        .init();
+
+    let sui_sdk_client_v0 = sui_sdk_client_v0(&config.rpc_url).await;
+    let data_provider: Box<dyn DataProvider> = Box::new(sui_sdk_client_v0.clone());
+    let data_loader = lru_cache_data_loader(&sui_sdk_client_v0).await;
+    println!("Launch GraphiQL IDE at: {}", config.url());
+
+    ServerBuilder::new()
+        .port(config.port)
+        .host(config.host)
+        .context_data(data_provider)
+        .context_data(data_loader)
+        .extension(Logger::default())
+        .extension(Timeout::default())
+        .build()
+        .run()
+        .await;
 }

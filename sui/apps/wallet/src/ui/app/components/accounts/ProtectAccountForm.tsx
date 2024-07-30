@@ -1,61 +1,56 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from '_app/shared/ButtonUI';
-import { ToS_LINK } from '_src/shared/constants';
 import { useZodForm } from '@mysten/core';
 import { useEffect } from 'react';
 import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import zxcvbn from 'zxcvbn';
-
-import { parseAutoLock, useAutoLockMinutes } from '../../hooks/useAutoLockMinutes';
+import { Link } from '../../shared/Link';
 import { CheckboxField } from '../../shared/forms/CheckboxField';
 import { Form } from '../../shared/forms/Form';
+import { SelectField } from '../../shared/forms/SelectField';
 import { TextField } from '../../shared/forms/TextField';
-import { Link } from '../../shared/Link';
-import { AutoLockSelector, zodSchema } from './AutoLockSelector';
+import { addDot } from '../../shared/input/password/validation';
+import { Button } from '_app/shared/ButtonUI';
+import { ToS_LINK } from '_src/shared/constants';
 
-function addDot(str: string | undefined) {
-	if (str && !str.endsWith('.')) {
-		return `${str}.`;
-	}
-	return str;
-}
+const LOCK_INTERVALS = ['Hour', 'Minute'];
 
-const formSchema = z
-	.object({
-		password: z
-			.object({
-				input: z
-					.string()
-					.nonempty('Required')
-					.superRefine((val, ctx) => {
-						const {
-							score,
-							feedback: { warning, suggestions },
-						} = zxcvbn(val);
-						if (score <= 2) {
-							ctx.addIssue({
-								code: z.ZodIssueCode.custom,
-								message: `${addDot(warning) || 'Password is not strong enough.'}${
-									suggestions ? ` ${suggestions.join(' ')}` : ''
-								}`,
-							});
-						}
-					}),
-				confirmation: z.string().nonempty('Required'),
-			})
-			.refine(({ input, confirmation }) => input && confirmation && input === confirmation, {
-				path: ['confirmation'],
-				message: "Passwords don't match",
-			}),
-		acceptedTos: z.literal<boolean>(true, {
-			errorMap: () => ({ message: 'Please accept Terms of Service to continue' }),
+const formSchema = z.object({
+	password: z
+		.object({
+			input: z
+				.string()
+				.nonempty('Required')
+				.superRefine((val, ctx) => {
+					const {
+						score,
+						feedback: { warning, suggestions },
+					} = zxcvbn(val);
+					if (score <= 2) {
+						ctx.addIssue({
+							code: z.ZodIssueCode.custom,
+							message: `${addDot(warning) || 'Password is not strong enough.'}${
+								suggestions ? ` ${suggestions.join(' ')}` : ''
+							}`,
+						});
+					}
+				}),
+			confirmation: z.string().nonempty('Required'),
+		})
+		.refine(({ input, confirmation }) => input && confirmation && input === confirmation, {
+			path: ['confirmation'],
+			message: "Passwords don't match",
 		}),
-	})
-	.merge(zodSchema);
+	acceptedTos: z.literal<boolean>(true, {
+		errorMap: () => ({ message: 'Please accept Terms of Service to continue' }),
+	}),
+	enabledAutolock: z.boolean(),
+	autoLockTimer: z.coerce.number().gt(0, 'Must be greater than 0'),
+	autoLockInterval: z.enum(['Hour', 'Minute']),
+});
 
 export type FormValues = z.infer<typeof formSchema>;
 
@@ -70,16 +65,17 @@ export function ProtectAccountForm({
 	submitButtonText,
 	cancelButtonText,
 	onSubmit,
-	displayToS,
+	displayToS = true,
 }: ProtectAccountFormProps) {
-	const autoLock = useAutoLockMinutes();
 	const form = useZodForm({
 		mode: 'all',
 		schema: formSchema,
-		values: {
+		defaultValues: {
 			password: { input: '', confirmation: '' },
-			acceptedTos: !!displayToS,
-			autoLock: parseAutoLock(autoLock.data || null),
+			acceptedTos: !displayToS,
+			enabledAutolock: false,
+			autoLockTimer: 1,
+			autoLockInterval: 'Hour',
 		},
 	});
 	const {
@@ -111,27 +107,29 @@ export function ProtectAccountForm({
 				label="Confirm Account Password"
 				{...register('password.confirmation')}
 			/>
-			<AutoLockSelector />
-			<div className="flex-1" />
-			<div className="flex flex-col gap-5">
-				{displayToS ? null : (
+			<div className="flex flex-col gap-4">
+				<CheckboxField name="enabledAutolock" label="Auto-lock after I am inactive for" disabled />
+				<div className="flex items-start justify-between gap-2">
+					<TextField disabled type="number" {...register('autoLockTimer')} />
+					<SelectField disabled name="autoLockInterval" options={LOCK_INTERVALS} />
+				</div>
+			</div>
+
+			<div className="flex flex-col gap-5 mt-auto">
+				{displayToS ? (
 					<CheckboxField
 						name="acceptedTos"
 						label={
-							<div className="text-bodySmall whitespace-nowrap">
-								I read and agreed to the{' '}
-								<span className="inline-block">
-									<Link
-										href={ToS_LINK}
-										beforeColor="steelDarker"
-										color="suiDark"
-										text="Terms of Services"
-									/>
-								</span>
-							</div>
+							<Link
+								href={ToS_LINK}
+								beforeColor="steelDarker"
+								color="suiDark"
+								text="Terms of Services"
+								before="I read and agreed to the"
+							/>
 						}
 					/>
-				)}
+				) : null}
 				<div className="flex gap-2.5">
 					{cancelButtonText ? (
 						<Button

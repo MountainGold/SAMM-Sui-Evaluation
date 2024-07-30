@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use clap::*;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use std::cell::RefCell;
@@ -12,7 +11,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-const MAX_PROTOCOL_VERSION: u64 = 31;
+const MAX_PROTOCOL_VERSION: u64 = 24;
 
 // Record history of protocol version allocations here:
 //
@@ -63,7 +62,7 @@ const MAX_PROTOCOL_VERSION: u64 = 31;
 // Version 19: Changes to sui-system package to enable liquid staking.
 //             Add limit for total size of events.
 //             Increase limit for number of events emitted to 1024.
-// Version 20: Enables the flag `narwhal_new_leader_election_schedule` for the new narwhal leader
+// Version 20: Enabling the flag `narwhal_new_leader_election_schedule` for the new narwhal leader
 //             schedule algorithm for enhanced fault tolerance and sets the bad node stake threshold
 //             value. Both values are set for all the environments except mainnet.
 // Version 21: ZKLogin known providers.
@@ -73,25 +72,6 @@ const MAX_PROTOCOL_VERSION: u64 = 31;
 //             value for mainnet.
 // Version 24: Re-enable simple gas conservation checks.
 //             Package publish/upgrade number in a single transaction limited.
-//             JWK / authenticator state flags.
-// Version 25: Add sui::table_vec::swap and sui::table_vec::swap_remove to system packages.
-// Version 26: New gas model version.
-//             Add support for receiving objects off of other objects in devnet only.
-// Version 28: Add sui::zklogin::verify_zklogin_id and related functions to sui framework.
-//             Enable transaction effects v2 in devnet.
-// Version 29: Add verify_legacy_zklogin_address flag to sui framework, this add ability to verify
-//             transactions from a legacy zklogin address.
-// Version 30: Enable Narwhal CertificateV2
-//             Add support for random beacon.
-//             Enable transaction effects v2 in testnet.
-//             Deprecate supported oauth providers from protocol config and rely on node config
-//             instead.
-//             In execution, has_public_transfer is recomputed when loading the object.
-//             Add support for shared obj deletion and receiving objects off of other objects in devnet only.
-// Version 31: Add support for shared object deletion in devnet only.
-//             Add support for getting object ID referenced by receiving object in sui framework.
-//             Create new execution layer version, and preserve previous behavior in v1.
-//             Update semantics of `sui::transfer::receive` and add `sui::transfer::public_receive`.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -181,7 +161,7 @@ impl SupportedProtocolVersions {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum)]
+#[derive(Clone, Serialize, Debug, PartialEq, Copy)]
 pub enum Chain {
     Mainnet,
     Testnet,
@@ -277,10 +257,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     txn_base_cost_as_multiplier: bool,
 
-    // If true, the ability to delete shared objects is in effect
-    #[serde(skip_serializing_if = "is_false")]
-    shared_object_deletion: bool,
-
     // If true, then the new algorithm for the leader election schedule will be used
     #[serde(skip_serializing_if = "is_false")]
     narwhal_new_leader_election_schedule: bool,
@@ -295,10 +271,6 @@ struct FeatureFlags {
 
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
-
-    #[serde(skip_serializing_if = "is_false")]
-    end_of_epoch_transaction_supported: bool,
-
     // Perform simple conservation checks keeping into account out of gas scenarios
     // while charging for storage.
     #[serde(skip_serializing_if = "is_false")]
@@ -307,37 +279,6 @@ struct FeatureFlags {
     // If true, use the new child object format type logging
     #[serde(skip_serializing_if = "is_false")]
     loaded_child_object_format_type: bool,
-
-    // Enable receiving sent objects
-    #[serde(skip_serializing_if = "is_false")]
-    receive_objects: bool,
-
-    // Enable v2 of Headers for Narwhal
-    #[serde(skip_serializing_if = "is_false")]
-    narwhal_header_v2: bool,
-
-    // Enable random beacon protocol
-    #[serde(skip_serializing_if = "is_false")]
-    random_beacon: bool,
-
-    #[serde(skip_serializing_if = "is_false")]
-    enable_effects_v2: bool,
-
-    // If true, then use CertificateV2 in narwhal.
-    #[serde(skip_serializing_if = "is_false")]
-    narwhal_certificate_v2: bool,
-
-    // If true, allow verify with legacy zklogin address
-    #[serde(skip_serializing_if = "is_false")]
-    verify_legacy_zklogin_address: bool,
-
-    // Enable throughput aware consensus submission
-    #[serde(skip_serializing_if = "is_false")]
-    throughput_aware_consensus_submission: bool,
-
-    // If true, recompute has_public_transfer from the type instead of what is stored in the object
-    #[serde(skip_serializing_if = "is_false")]
-    recompute_has_public_transfer_in_execution: bool,
 }
 
 fn is_false(b: &bool) -> bool {
@@ -410,11 +351,8 @@ pub struct ProtocolConfig {
     max_input_objects: Option<u64>,
 
     /// Max size of objects a transaction can write to disk after completion. Enforce by the Sui adapter.
-    /// This is the sum of the serialized size of all objects written to disk.
-    /// The max size of individual objects on the other hand is `max_move_object_size`.
     max_size_written_objects: Option<u64>,
     /// Max size of objects a system transaction can write to disk after completion. Enforce by the Sui adapter.
-    /// Similar to `max_size_written_objects` but for system transactions.
     max_size_written_objects_system_tx: Option<u64>,
 
     /// Maximum size of serialized transaction effects.
@@ -710,9 +648,6 @@ pub struct ProtocolConfig {
     transfer_freeze_object_cost_base: Option<u64>,
     // Cost params for the Move native function `share_object<T: key>(obj: T)`
     transfer_share_object_cost_base: Option<u64>,
-    // Cost params for the Move native function
-    // `receive_object<T: key>(p: &mut UID, recv: Receiving<T>T)`
-    transfer_receive_object_cost_base: Option<u64>,
 
     // TxContext
     // Cost params for the Move native function `transfer_impl<T: key>(obj: T, recipient: address)`
@@ -811,11 +746,6 @@ pub struct ProtocolConfig {
     hmac_hmac_sha3_256_input_cost_per_byte: Option<u64>,
     hmac_hmac_sha3_256_input_cost_per_block: Option<u64>,
 
-    // zklogin::check_zklogin_id
-    check_zklogin_id_cost_base: Option<u64>,
-    // zklogin::check_zklogin_issuer
-    check_zklogin_issuer_cost_base: Option<u64>,
-
     // Const params for consensus scoring decision
     // The scaling factor property for the MED outlier detection
     scoring_decision_mad_divisor: Option<f64>,
@@ -831,16 +761,6 @@ pub struct ProtocolConfig {
     consensus_bad_nodes_stake_threshold: Option<u64>,
 
     max_jwk_votes_per_validator_per_epoch: Option<u64>,
-    // The maximum age of a JWK in epochs before it is removed from the AuthenticatorState object.
-    // Applied at the end of an epoch as a delta from the new epoch value, so setting this to 1
-    // will cause the new epoch to start with JWKs from the previous epoch still valid.
-    max_age_of_jwk_in_epochs: Option<u64>,
-
-    /// === random beacon ===
-
-    /// Maximum allowed precision loss when reducing voting weights for the random beacon
-    /// protocol.
-    random_beacon_reduction_allowed_delta: Option<u16>,
 }
 
 // feature flags
@@ -866,10 +786,6 @@ impl ProtocolConfig {
                 self.version
             )))
         }
-    }
-
-    pub fn receiving_objects_supported(&self) -> bool {
-        self.feature_flags.receive_objects
     }
 
     pub fn package_upgrades_supported(&self) -> bool {
@@ -959,10 +875,6 @@ impl ProtocolConfig {
         self.feature_flags.txn_base_cost_as_multiplier
     }
 
-    pub fn shared_object_deletion(&self) -> bool {
-        self.feature_flags.shared_object_deletion
-    }
-
     pub fn narwhal_new_leader_election_schedule(&self) -> bool {
         self.feature_flags.narwhal_new_leader_election_schedule
     }
@@ -972,12 +884,7 @@ impl ProtocolConfig {
     }
 
     pub fn enable_jwk_consensus_updates(&self) -> bool {
-        let ret = self.feature_flags.enable_jwk_consensus_updates;
-        if ret {
-            // jwk updates required end-of-epoch transactions
-            assert!(self.feature_flags.end_of_epoch_transaction_supported);
-        }
-        ret
+        self.feature_flags.enable_jwk_consensus_updates
     }
 
     pub fn simple_conservation_checks(&self) -> bool {
@@ -986,54 +893,6 @@ impl ProtocolConfig {
 
     pub fn loaded_child_object_format_type(&self) -> bool {
         self.feature_flags.loaded_child_object_format_type
-    }
-
-    pub fn end_of_epoch_transaction_supported(&self) -> bool {
-        let ret = self.feature_flags.end_of_epoch_transaction_supported;
-        if !ret {
-            // jwk updates required end-of-epoch transactions
-            assert!(!self.feature_flags.enable_jwk_consensus_updates);
-        }
-        ret
-    }
-
-    pub fn recompute_has_public_transfer_in_execution(&self) -> bool {
-        self.feature_flags
-            .recompute_has_public_transfer_in_execution
-    }
-
-    // this function only exists for readability in the genesis code.
-    pub fn create_authenticator_state_in_genesis(&self) -> bool {
-        self.enable_jwk_consensus_updates()
-    }
-
-    pub fn narwhal_header_v2(&self) -> bool {
-        self.feature_flags.narwhal_header_v2
-    }
-
-    pub fn random_beacon(&self) -> bool {
-        let ret = self.feature_flags.random_beacon;
-        if ret {
-            // random beacon requires narwhal v2 headers
-            assert!(self.feature_flags.narwhal_header_v2);
-        }
-        ret
-    }
-
-    pub fn enable_effects_v2(&self) -> bool {
-        self.feature_flags.enable_effects_v2
-    }
-
-    pub fn narwhal_certificate_v2(&self) -> bool {
-        self.feature_flags.narwhal_certificate_v2
-    }
-
-    pub fn verify_legacy_zklogin_address(&self) -> bool {
-        self.feature_flags.verify_legacy_zklogin_address
-    }
-
-    pub fn throughput_aware_consensus_submission(&self) -> bool {
-        self.feature_flags.throughput_aware_consensus_submission
     }
 }
 
@@ -1282,7 +1141,6 @@ impl ProtocolConfig {
             transfer_freeze_object_cost_base: Some(52),
             // Cost params for the Move native function `share_object<T: key>(obj: T)`
             transfer_share_object_cost_base: Some(52),
-            transfer_receive_object_cost_base: None,
 
             // `tx_context` module
             // Cost params for the Move native function `transfer_impl<T: key>(obj: T, recipient: address)`
@@ -1381,10 +1239,6 @@ impl ProtocolConfig {
             hmac_hmac_sha3_256_input_cost_per_byte: Some(2),
             hmac_hmac_sha3_256_input_cost_per_block: Some(2),
 
-            // zklogin::check_zklogin_id
-            check_zklogin_id_cost_base: None,
-            // zklogin::check_zklogin_issuer
-            check_zklogin_issuer_cost_base: None,
 
             max_size_written_objects: None,
             max_size_written_objects_system_tx: None,
@@ -1407,10 +1261,6 @@ impl ProtocolConfig {
 
             max_jwk_votes_per_validator_per_epoch: None,
 
-            max_age_of_jwk_in_epochs: None,
-
-            random_beacon_reduction_allowed_delta: None,
-
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -1431,10 +1281,8 @@ impl ProtocolConfig {
                     cfg.storage_gas_price = Some(76);
                     cfg.feature_flags.loaded_child_objects_fixed = true;
                     // max size of written objects during a TXn
-                    // this is a sum of all objects written during a TXn
                     cfg.max_size_written_objects = Some(5 * 1000 * 1000);
                     // max size of written objects during a system TXn to allow for larger writes
-                    // akin to `max_size_written_objects` but for system TXns
                     cfg.max_size_written_objects_system_tx = Some(50 * 1000 * 1000);
                     cfg.feature_flags.package_upgrades = true;
                 }
@@ -1566,85 +1414,6 @@ impl ProtocolConfig {
                 24 => {
                     cfg.feature_flags.simple_conservation_checks = true;
                     cfg.max_publish_or_upgrade_per_ptb = Some(5);
-
-                    cfg.feature_flags.end_of_epoch_transaction_supported = true;
-
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags.enable_jwk_consensus_updates = true;
-                        // Max of 10 votes per hour
-                        cfg.max_jwk_votes_per_validator_per_epoch = Some(240);
-                        cfg.max_age_of_jwk_in_epochs = Some(1);
-                    }
-                }
-                25 => {
-                    // Enable zkLogin for all providers in all networks.
-                    cfg.feature_flags.zklogin_supported_providers = BTreeSet::from([
-                        "Google".to_string(),
-                        "Facebook".to_string(),
-                        "Twitch".to_string(),
-                    ]);
-                    cfg.feature_flags.zklogin_auth = true;
-
-                    // Enable jwk consensus updates
-                    cfg.feature_flags.enable_jwk_consensus_updates = true;
-                    cfg.max_jwk_votes_per_validator_per_epoch = Some(240);
-                    cfg.max_age_of_jwk_in_epochs = Some(1);
-                }
-                26 => {
-                    cfg.gas_model_version = Some(7);
-                    // Only enable receiving objects in devnet
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        cfg.transfer_receive_object_cost_base = Some(52);
-                        cfg.feature_flags.receive_objects = true;
-                    }
-                }
-                27 => {
-                    cfg.gas_model_version = Some(8);
-                }
-                28 => {
-                    // zklogin::check_zklogin_id
-                    cfg.check_zklogin_id_cost_base = Some(200);
-                    // zklogin::check_zklogin_issuer
-                    cfg.check_zklogin_issuer_cost_base = Some(200);
-
-                    // Only enable effects v2 on devnet.
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        cfg.feature_flags.enable_effects_v2 = true;
-                    }
-                }
-                29 => {
-                    cfg.feature_flags.verify_legacy_zklogin_address = true;
-                }
-                30 => {
-                    // Only enable nw certificate v2 on testnet.
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags.narwhal_certificate_v2 = true;
-                    }
-
-                    cfg.random_beacon_reduction_allowed_delta = Some(800);
-                    // Only enable random beacon on devnet
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        cfg.feature_flags.narwhal_header_v2 = true;
-                        cfg.feature_flags.random_beacon = true;
-                    }
-                    // Only enable effects v2 on devnet and testnet.
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags.enable_effects_v2 = true;
-                    }
-
-                    // zklogin_supported_providers config is deprecated, zklogin
-                    // signature verifier will use the fetched jwk map to determine
-                    // whether the provider is supported based on node config.
-                    cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
-
-                    cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
-                }
-                31 => {
-                    cfg.execution_version = Some(2);
-                    // Only enable shared object deletion on devnet
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        cfg.feature_flags.shared_object_deletion = true;
-                    }
                 }
                 // Use this template when making changes:
                 //
@@ -1695,21 +1464,14 @@ impl ProtocolConfig {
     pub fn set_enable_jwk_consensus_updates_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_jwk_consensus_updates = val
     }
+
     pub fn set_upgraded_multisig_for_testing(&mut self, val: bool) {
         self.feature_flags.upgraded_multisig_supported = val
     }
     #[cfg(msim)]
     pub fn set_simplified_unwrap_then_delete(&mut self, val: bool) {
-        self.feature_flags.simplified_unwrap_then_delete = val;
-        if val == false {
-            // Given that we will never enable effect V2 before turning on simplified_unwrap_then_delete, we also need to disable effect V2 here.
-            self.set_enable_effects_v2(false);
-        }
+        self.feature_flags.simplified_unwrap_then_delete = val
     }
-    pub fn set_shared_object_deletion(&mut self, val: bool) {
-        self.feature_flags.shared_object_deletion = val;
-    }
-
     pub fn set_narwhal_new_leader_election_schedule(&mut self, val: bool) {
         self.feature_flags.narwhal_new_leader_election_schedule = val;
     }
@@ -1717,17 +1479,8 @@ impl ProtocolConfig {
     pub fn set_consensus_bad_nodes_stake_threshold(&mut self, val: u64) {
         self.consensus_bad_nodes_stake_threshold = Some(val);
     }
-    pub fn set_receive_object_for_testing(&mut self, val: bool) {
-        self.feature_flags.receive_objects = val
-    }
-    pub fn set_narwhal_certificate_v2(&mut self, val: bool) {
-        self.feature_flags.narwhal_certificate_v2 = val
-    }
-    pub fn set_verify_legacy_zklogin_address(&mut self, val: bool) {
-        self.feature_flags.verify_legacy_zklogin_address = val
-    }
-    pub fn set_enable_effects_v2(&mut self, val: bool) {
-        self.feature_flags.enable_effects_v2 = val;
+    pub fn set_zklogin_supported_providers(&mut self, list: BTreeSet<String>) {
+        self.feature_flags.zklogin_supported_providers = list
     }
 }
 

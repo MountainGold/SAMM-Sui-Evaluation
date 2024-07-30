@@ -1,33 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::middleware::{self, Next};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::net::TcpListener;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use std::sync::Arc;
 use std::{ffi::OsString, fs, path::Path, process::Command};
-use tokio::sync::oneshot::Sender;
 
 use anyhow::{anyhow, bail};
 use axum::extract::{Query, State};
-use axum::response::{IntoResponse, Response};
+use axum::response::IntoResponse;
 use axum::routing::{get, IntoMakeService};
-use axum::Extension;
 use axum::{Json, Router, Server};
-use hyper::http::{HeaderName, HeaderValue, Method};
+use hyper::http::Method;
 use hyper::server::conn::AddrIncoming;
 use hyper::{HeaderMap, StatusCode};
 use jsonrpsee::core::client::{Subscription, SubscriptionClientT};
 use jsonrpsee::core::params::ArrayParams;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
-use mysten_metrics::RegistryService;
-use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use serde::{Deserialize, Serialize};
 use tower::ServiceBuilder;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 use url::Url;
 
 use move_compiler::compiled_unit::CompiledUnitEnum;
@@ -42,7 +36,7 @@ use sui_sdk::SuiClientBuilder;
 use sui_source_validation::{BytecodeSourceVerifier, SourceMode};
 
 pub const HOST_PORT_ENV: &str = "HOST_PORT";
-pub const SUI_SOURCE_VALIDATION_VERSION_HEADER: &str = "x-sui-source-validation-version";
+pub const SUI_SOURCE_VALIDATION_VERSION_HEADER: &str = "X-Sui-Source-Validation-Version";
 pub const SUI_SOURCE_VALIDATION_VERSION: &str = "0.1";
 
 pub const MAINNET_URL: &str = "https://fullnode.mainnet.sui.io:443";
@@ -55,11 +49,6 @@ pub const TESTNET_WS_URL: &str = "wss://rpc.testnet.sui.io:443";
 pub const DEVNET_WS_URL: &str = "wss://rpc.devnet.sui.io:443";
 pub const LOCALNET_WS_URL: &str = "ws://127.0.0.1:9000";
 
-pub const WS_PING_INTERVAL: Duration = Duration::from_millis(20_000);
-
-pub const METRICS_ROUTE: &str = "/metrics";
-pub const METRICS_HOST_PORT: &str = "0.0.0.0:9184";
-
 pub fn host_port() -> String {
     match option_env!("HOST_PORT") {
         Some(v) => v.to_string(),
@@ -67,14 +56,14 @@ pub fn host_port() -> String {
     }
 }
 
-#[derive(Clone, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct Config {
-    pub packages: Vec<PackageSource>,
+    pub packages: Vec<PackageSources>,
 }
 
-#[derive(Clone, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 #[serde(tag = "source", content = "values")]
-pub enum PackageSource {
+pub enum PackageSources {
     Repository(RepositorySource),
     Directory(DirectorySource),
 }
@@ -137,17 +126,15 @@ impl fmt::Display for Network {
     }
 }
 
-/// Map module name to verified source info.
-pub type SourceLookup = BTreeMap<Symbol, SourceInfo>;
-/// Map addresses to module names and sources.
-pub type AddressLookup = BTreeMap<AccountAddress, SourceLookup>;
+/// Map (package address, module name) tuples to verified source info.
+type SourceLookup = BTreeMap<(AccountAddress, Symbol), SourceInfo>;
 /// Top-level lookup that maps network to sources for corresponding on-chain networks.
-pub type NetworkLookup = BTreeMap<Network, AddressLookup>;
+pub type NetworkLookup = BTreeMap<Network, SourceLookup>;
 
 pub async fn verify_package(
     network: &Network,
     package_path: impl AsRef<Path>,
-) -> anyhow::Result<(Network, AddressLookup)> {
+) -> anyhow::Result<(Network, SourceLookup)> {
     move_package::package_hooks::register_package_hooks(Box::new(SuiPackageHooks));
     let config = resolve_lock_file_path(
         MoveBuildConfig::default(),
@@ -176,7 +163,7 @@ pub async fn verify_package(
         )
         .await?;
 
-    let mut address_map = AddressLookup::new();
+    let mut map = SourceLookup::new();
     let address = compiled_package
         .published_at
         .as_ref()
@@ -186,19 +173,16 @@ pub async fn verify_package(
     for v in &compiled_package.package.root_compiled_units {
         let path = v.source_path.to_path_buf();
         let source = Some(fs::read_to_string(path.as_path())?);
-        let name = match v.unit {
-            CompiledUnitEnum::Module(ref m) => m.name,
-            CompiledUnitEnum::Script(ref m) => m.name,
+        match v.unit {
+            CompiledUnitEnum::Module(ref m) => {
+                map.insert((address, m.name), SourceInfo { path, source })
+            }
+            CompiledUnitEnum::Script(ref m) => {
+                map.insert((address, m.name), SourceInfo { path, source })
+            }
         };
-        if let Some(existing) = address_map.get_mut(&address) {
-            existing.insert(name, SourceInfo { path, source });
-        } else {
-            let mut source_map = SourceLookup::new();
-            source_map.insert(name, SourceInfo { path, source });
-            address_map.insert(address, source_map);
-        }
     }
-    Ok((network.clone(), address_map))
+    Ok((network.clone(), map))
 }
 
 pub fn parse_config(config_path: impl AsRef<Path>) -> anyhow::Result<Config> {
@@ -320,8 +304,8 @@ pub async fn initialize(config: &Config, dir: &Path) -> anyhow::Result<NetworkLo
     let mut repos = vec![];
     for s in &config.packages {
         match s {
-            PackageSource::Repository(r) => repos.push(r),
-            PackageSource::Directory(_) => (), /* skip cloning */
+            PackageSources::Repository(r) => repos.push(r),
+            PackageSources::Directory(_) => (), /* skip cloning */
         }
     }
     clone_repositories(repos, dir).await?;
@@ -332,7 +316,7 @@ pub async fn verify_packages(config: &Config, dir: &Path) -> anyhow::Result<Netw
     let mut tasks = vec![];
     for p in &config.packages {
         match p {
-            PackageSource::Repository(r) => {
+            PackageSources::Repository(r) => {
                 let repo_name = repo_name_from_url(&r.repository)?;
                 let network_name = r.network.clone().unwrap_or_default().to_string();
                 let packages_dir = dir.join(network_name).join(repo_name);
@@ -344,7 +328,7 @@ pub async fn verify_packages(config: &Config, dir: &Path) -> anyhow::Result<Netw
                     tasks.push(t)
                 }
             }
-            PackageSource::Directory(packages_dir) => {
+            PackageSources::Directory(packages_dir) => {
                 for p in &packages_dir.packages {
                     let package_path = PathBuf::from(p.path.clone());
                     let network = packages_dir.network.clone().unwrap_or_default();
@@ -356,10 +340,10 @@ pub async fn verify_packages(config: &Config, dir: &Path) -> anyhow::Result<Netw
         }
     }
 
-    let mut mainnet_lookup = AddressLookup::new();
-    let mut testnet_lookup = AddressLookup::new();
-    let mut devnet_lookup = AddressLookup::new();
-    let mut localnet_lookup = AddressLookup::new();
+    let mut mainnet_lookup = SourceLookup::new();
+    let mut testnet_lookup = SourceLookup::new();
+    let mut devnet_lookup = SourceLookup::new();
+    let mut localnet_lookup = SourceLookup::new();
     for t in tasks {
         let (network, new_lookup) = t.await.unwrap()?;
         match network {
@@ -377,103 +361,49 @@ pub async fn verify_packages(config: &Config, dir: &Path) -> anyhow::Result<Netw
     Ok(lookup)
 }
 
-// A thread that monitors on-chain transactions for package upgrades. `config` specifies which packages
-// to watch. `app_state` contains the map of sources returned by the server. In particular, `watch_for_upgrades`
-// invalidates (i.e., clears) the sources returned by the serve when we observe a package upgrade, so that we do not
-// falsely report outdated sources for a package. Pass an optional `channel` to observe the upgrade transaction(s).
-// The `channel` parameter exists for testing.
-pub async fn watch_for_upgrades(
-    packages: Vec<PackageSource>,
-    app_state: Arc<RwLock<AppState>>,
-    network: Network,
-    channel: Option<Sender<SuiTransactionBlockEffects>>,
-) -> anyhow::Result<()> {
+pub async fn watch_for_upgrades(config: &Config) -> anyhow::Result<()> {
     let mut watch_ids = ArrayParams::new();
-    let mut num_packages = 0;
-    for s in packages {
+    for s in &config.packages {
         let packages = match s {
-            PackageSource::Repository(RepositorySource { packages, .. }) => packages,
-            PackageSource::Directory(DirectorySource { packages, .. }) => packages,
+            PackageSources::Repository(RepositorySource { packages, .. }) => packages,
+            PackageSources::Directory(DirectorySource { packages, .. }) => packages,
         };
         for p in packages {
             if let Some(id) = p.watch {
-                num_packages += 1;
                 watch_ids.insert(TransactionFilter::ChangedObject(id))?
             }
         }
     }
 
-    let websocket_url = match network {
-        Network::Mainnet => MAINNET_WS_URL,
-        Network::Testnet => TESTNET_WS_URL,
-        Network::Devnet => DEVNET_WS_URL,
-        Network::Localnet => LOCALNET_WS_URL,
-    };
-
-    let client: WsClient = WsClientBuilder::default()
-        .ping_interval(WS_PING_INTERVAL)
-        .build(websocket_url)
-        .await?;
+    let client: WsClient = WsClientBuilder::default().build(LOCALNET_WS_URL).await?;
     let mut subscription: Subscription<SuiTransactionBlockEffects> = client
         .subscribe(
             "suix_subscribeTransaction",
             watch_ids,
             "suix_unsubscribeTransaction",
         )
-        .await
-        .map_err(|e| anyhow!("Failed to open websocket connection for {}: {}", network, e))?;
+        .await?;
 
-    info!("Listening for upgrades on {num_packages} package(s) on {websocket_url}...");
-    loop {
-        let result: Option<Result<SuiTransactionBlockEffects, _>> = subscription.next().await;
-        match result {
-            Some(Ok(result)) => {
-                // We see an upgrade transaction. Clear all sources since all of part of these may now be invalid.
-                // Currently we need to restart the server within some time delta of this observation to resume
-                // returning source. Restarting revalidates the latest release sources per repositories in the config file.
-                // Restarting is a manual side-effect outside of this server because we need to ensure that sources in the
-                // repositories _actually contain_ the latest source corresponding to on-chain data (which is subject to
-                // manual syncing itself currently).
-                info!("Saw upgrade txn: {:?}", result);
-                let mut app_state = app_state.write().unwrap();
-                app_state.sources = NetworkLookup::new(); // Clear all sources.
-                if let Some(channel) = channel {
-                    channel.send(result).unwrap();
-                    break Ok(());
-                }
-            }
-            Some(_) => {
-                info!("Saw failed transaction when listening to upgrades.")
-            }
-            None => {
-                error!("Fatal: WebSocket connection lost while listening for upgrades. Shutting down server.");
-                std::process::exit(1)
-            }
-        }
-    }
+    info!("Listening for upgrades...");
+    let result = subscription.next().await;
+    info!("Saw upgrade txn: {:?}", result);
+    Ok(())
 }
 
 pub struct AppState {
     pub sources: NetworkLookup,
-    pub metrics: Option<SourceServiceMetrics>,
 }
 
-pub fn serve(
-    app_state: Arc<RwLock<AppState>>,
-) -> anyhow::Result<Server<AddrIncoming, IntoMakeService<Router>>> {
+pub fn serve(app_state: AppState) -> anyhow::Result<Server<AddrIncoming, IntoMakeService<Router>>> {
     let app = Router::new()
-        .route("/api", get(api_route))
-        .route("/api/list", get(list_route))
+        .route("/api", get(api_route).with_state(Arc::new(app_state)))
         .layer(
-            ServiceBuilder::new()
-                .layer(
-                    tower_http::cors::CorsLayer::new()
-                        .allow_methods([Method::GET])
-                        .allow_origin(tower_http::cors::Any),
-                )
-                .layer(middleware::from_fn(check_version_header)),
-        )
-        .with_state(app_state);
+            ServiceBuilder::new().layer(
+                tower_http::cors::CorsLayer::new()
+                    .allow_methods([Method::GET])
+                    .allow_origin(tower_http::cors::Any),
+            ),
+        );
     let listener = TcpListener::bind(host_port())?;
     Ok(Server::from_tcp(listener)?.serve(app.into_make_service()))
 }
@@ -497,7 +427,8 @@ pub struct ErrorResponse {
 }
 
 async fn api_route(
-    State(app_state): State<Arc<RwLock<AppState>>>,
+    headers: HeaderMap,
+    State(app_state): State<Arc<AppState>>,
     Query(Request {
         network,
         address,
@@ -505,24 +436,48 @@ async fn api_route(
     }): Query<Request>,
 ) -> impl IntoResponse {
     debug!("request network={network}&address={address}&module={module}");
-    let symbol = Symbol::from(module);
-    let Ok(address) = AccountAddress::from_hex_literal(&address) else {
-        let error = format!("Invalid hex address {address}");
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse { error }).into_response(),
-        );
+    let version = headers
+        .get(SUI_SOURCE_VALIDATION_VERSION_HEADER)
+        .as_ref()
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        SUI_SOURCE_VALIDATION_VERSION_HEADER,
+        SUI_SOURCE_VALIDATION_VERSION.parse().unwrap(),
+    );
+
+    match version {
+        Some(v) if v != SUI_SOURCE_VALIDATION_VERSION => {
+            let error = format!(
+                "Unsupported version '{v}' specified in header \
+		 {SUI_SOURCE_VALIDATION_VERSION_HEADER}"
+            );
+            return (
+                StatusCode::BAD_REQUEST,
+                headers,
+                Json(ErrorResponse { error }).into_response(),
+            );
+        }
+        Some(_) => (),
+        None => info!("No version set, using {SUI_SOURCE_VALIDATION_VERSION}"),
     };
 
-    let app_state = app_state.read().unwrap();
-    if let Some(metrics) = &app_state.metrics {
-        metrics.total_requests_received.inc();
-    }
+    let symbol = Symbol::from(module);
+    let Ok(address) = AccountAddress::from_hex_literal(&address) else {
+	let error = format!("Invalid hex address {address}");
+	return (
+	    StatusCode::BAD_REQUEST,
+	    headers,
+	    Json(ErrorResponse { error }).into_response()
+	)
+    };
+
     let source_result = app_state
         .sources
         .get(&network)
-        .and_then(|n| n.get(&address))
-        .and_then(|a| a.get(&symbol));
+        .and_then(|l| l.get(&(address, symbol)));
     if let Some(SourceInfo {
         source: Some(source),
         ..
@@ -530,6 +485,7 @@ async fn api_route(
     {
         (
             StatusCode::OK,
+            headers,
             Json(SourceResponse {
                 source: source.to_owned(),
             })
@@ -538,6 +494,7 @@ async fn api_route(
     } else {
         (
             StatusCode::NOT_FOUND,
+            headers,
             Json(ErrorResponse {
                 error: format!(
                     "No source found for {symbol} at address {address} on network {network}"
@@ -546,84 +503,4 @@ async fn api_route(
             .into_response(),
         )
     }
-}
-
-async fn check_version_header<B>(
-    headers: HeaderMap,
-    req: hyper::Request<B>,
-    next: Next<B>,
-) -> Response {
-    let version = headers
-        .get(SUI_SOURCE_VALIDATION_VERSION_HEADER)
-        .as_ref()
-        .and_then(|h| h.to_str().ok())
-        .map(|s| s.to_string());
-
-    match version {
-        Some(v) if v != SUI_SOURCE_VALIDATION_VERSION => {
-            let error = format!(
-                "Unsupported version '{v}' specified in header \
-		 {SUI_SOURCE_VALIDATION_VERSION_HEADER}"
-            );
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                HeaderName::from_static(SUI_SOURCE_VALIDATION_VERSION_HEADER),
-                HeaderValue::from_static(SUI_SOURCE_VALIDATION_VERSION),
-            );
-            return (
-                StatusCode::BAD_REQUEST,
-                headers,
-                Json(ErrorResponse { error }).into_response(),
-            )
-                .into_response();
-        }
-        _ => (),
-    }
-    let mut response = next.run(req).await;
-    response.headers_mut().insert(
-        HeaderName::from_static(SUI_SOURCE_VALIDATION_VERSION_HEADER),
-        HeaderValue::from_static(SUI_SOURCE_VALIDATION_VERSION),
-    );
-    response
-}
-
-async fn list_route(State(_app_state): State<Arc<RwLock<AppState>>>) -> impl IntoResponse {
-    (StatusCode::OK, "").into_response()
-}
-
-pub struct SourceServiceMetrics {
-    pub total_requests_received: IntCounter,
-}
-
-impl SourceServiceMetrics {
-    pub fn new(registry: &Registry) -> Self {
-        Self {
-            total_requests_received: register_int_counter_with_registry!(
-                "total_requests",
-                "Total number of requests received by Source Service",
-                registry
-            )
-            .unwrap(),
-        }
-    }
-}
-
-pub fn start_prometheus_server(addr: TcpListener) -> RegistryService {
-    let registry = Registry::new();
-
-    let registry_service = RegistryService::new(registry);
-
-    let app = Router::new()
-        .route(METRICS_ROUTE, get(mysten_metrics::metrics))
-        .layer(Extension(registry_service.clone()));
-
-    tokio::spawn(async move {
-        axum::Server::from_tcp(addr)
-            .unwrap()
-            .serve(app.into_make_service())
-            .await
-            .unwrap();
-    });
-
-    registry_service
 }

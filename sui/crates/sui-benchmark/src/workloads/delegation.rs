@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::drivers::Interval;
 use crate::system_state_observer::SystemStateObserver;
 use crate::workloads::payload::Payload;
 use crate::workloads::workload::{Workload, WorkloadBuilder};
@@ -93,8 +92,6 @@ impl DelegationWorkloadBuilder {
         target_qps: u64,
         num_workers: u64,
         in_flight_ratio: u64,
-        duration: Interval,
-        group: u32,
     ) -> Option<WorkloadBuilderInfo> {
         let target_qps = (workload_weight * target_qps as f32) as u64;
         let num_workers = (workload_weight * num_workers as f32).ceil() as u64;
@@ -106,8 +103,6 @@ impl DelegationWorkloadBuilder {
                 target_qps,
                 num_workers,
                 max_ops,
-                duration,
-                group,
             };
             let workload_builder = Box::<dyn WorkloadBuilder<dyn Payload>>::from(Box::new(
                 DelegationWorkloadBuilder { count: max_ops },

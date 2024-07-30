@@ -1,16 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { act, renderHook, waitFor } from '@testing-library/react';
-
-import { WalletNotConnectedError } from '../../src/errors/walletErrors.js';
-import {
-	useConnectWallet,
-	useCurrentAccount,
-	useCurrentWallet,
-	useDisconnectWallet,
-} from '../../src/index.js';
+import { renderHook, waitFor, act } from '@testing-library/react';
+import { useConnectWallet, useDisconnectWallet, useWallet } from 'dapp-kit/src';
 import { createWalletProviderContextWrapper, registerMockWallet } from '../test-utils.js';
+import { WalletNotConnectedError } from 'dapp-kit/src/errors/walletErrors.js';
 
 describe('useDisconnectWallet', () => {
 	test('that an error is thrown when trying to disconnect with no active connection', async () => {
@@ -30,8 +24,7 @@ describe('useDisconnectWallet', () => {
 			() => ({
 				connectWallet: useConnectWallet(),
 				disconnectWallet: useDisconnectWallet(),
-				currentWallet: useCurrentWallet(),
-				currentAccount: useCurrentAccount(),
+				walletInfo: useWallet(),
 			}),
 			{ wrapper },
 		);
@@ -39,14 +32,19 @@ describe('useDisconnectWallet', () => {
 		result.current.connectWallet.mutate({ wallet: mockWallet });
 
 		await waitFor(() => expect(result.current.connectWallet.isSuccess).toBe(true));
-		expect(result.current.currentWallet.isConnected).toBe(true);
-		expect(result.current.currentAccount).toBeTruthy();
+		expect(result.current.walletInfo.connectionStatus).toBe('connected');
+
+		expect(window.localStorage.getItem('sui-dapp-kit:wallet-connection-info')).toBeTruthy();
 
 		result.current.disconnectWallet.mutate();
 		await waitFor(() => expect(result.current.disconnectWallet.isSuccess).toBe(true));
 
-		expect(result.current.currentWallet.isDisconnected).toBe(true);
-		expect(result.current.currentAccount).toBeFalsy();
+		expect(result.current.walletInfo.currentWallet).toBeNull();
+		expect(result.current.walletInfo.accounts).toStrictEqual([]);
+		expect(result.current.walletInfo.currentAccount).toBeNull();
+		expect(result.current.walletInfo.connectionStatus).toBe('disconnected');
+
+		expect(window.localStorage.getItem('sui-dapp-kit:wallet-connection-info')).toBeFalsy();
 
 		act(() => {
 			unregister();

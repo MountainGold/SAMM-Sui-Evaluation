@@ -3,46 +3,37 @@
 
 import type {
 	IdentifierRecord,
+	StandardConnectFeature,
+	StandardEventsFeature,
+	SuiFeatures,
 	ReadonlyWalletAccount,
-	StandardEventsChangeProperties,
-	StandardEventsOnMethod,
-	Wallet,
-	WalletWithRequiredFeatures,
 } from '@mysten/wallet-standard';
 import { SUI_CHAINS } from '@mysten/wallet-standard';
+import type { Wallet } from '@mysten/wallet-standard';
 
 export class MockWallet implements Wallet {
 	version = '1.0.0' as const;
 	icon = `data:image/png;base64,` as const;
 	chains = SUI_CHAINS;
-
 	#walletName: string;
 	#accounts: ReadonlyWalletAccount[];
-	#features: IdentifierRecord<unknown>;
-	#eventHandlers: {
-		event: string;
-		listener: (properties: StandardEventsChangeProperties) => void;
-	}[];
+	#additionalFeatures: IdentifierRecord<unknown>;
 
 	#connect = vi.fn().mockImplementation(() => ({ accounts: this.#accounts }));
 	#disconnect = vi.fn();
-
-	#on = vi.fn((...args: Parameters<StandardEventsOnMethod>) => {
-		this.#eventHandlers.push({ event: args[0], listener: args[1] });
-		return () => {
-			this.#eventHandlers = [];
-		};
-	});
+	#on = vi.fn();
+	#signPersonalMessage = vi.fn();
+	#signTransactionBlock = vi.fn();
+	#signAndExecuteTransactionBlock = vi.fn();
 
 	constructor(
 		name: string,
 		accounts: ReadonlyWalletAccount[],
-		features: IdentifierRecord<unknown>,
+		additionalFeatures: IdentifierRecord<unknown>,
 	) {
 		this.#walletName = name;
 		this.#accounts = accounts;
-		this.#features = features;
-		this.#eventHandlers = [];
+		this.#additionalFeatures = additionalFeatures;
 	}
 
 	get name() {
@@ -53,7 +44,10 @@ export class MockWallet implements Wallet {
 		return this.#accounts;
 	}
 
-	get features(): WalletWithRequiredFeatures['features'] {
+	get features(): StandardConnectFeature &
+		StandardEventsFeature &
+		SuiFeatures &
+		IdentifierRecord<unknown> {
 		return {
 			'standard:connect': {
 				version: '1.0.0',
@@ -67,14 +61,19 @@ export class MockWallet implements Wallet {
 				version: '1.0.0',
 				on: this.#on,
 			},
-			...this.#features,
+			'sui:signPersonalMessage': {
+				version: '1.0.0',
+				signPersonalMessage: this.#signPersonalMessage,
+			},
+			'sui:signTransactionBlock': {
+				version: '1.0.0',
+				signTransactionBlock: this.#signTransactionBlock,
+			},
+			'sui:signAndExecuteTransactionBlock': {
+				version: '1.0.0',
+				signAndExecuteTransactionBlock: this.#signAndExecuteTransactionBlock,
+			},
+			...this.#additionalFeatures,
 		};
-	}
-
-	deleteFirstAccount() {
-		this.#accounts.splice(0, 1);
-		this.#eventHandlers.forEach(({ listener }) => {
-			listener({ accounts: this.#accounts });
-		});
 	}
 }

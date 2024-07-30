@@ -79,18 +79,6 @@ impl AuthenticatorTrait for MultiSig {
         Ok(())
     }
 
-    fn verify_uncached_checks<T>(
-        &self,
-        _value: &IntentMessage<T>,
-        _author: SuiAddress,
-        _aux_verify_data: &VerifyParams,
-    ) -> Result<(), SuiError>
-    where
-        T: Serialize,
-    {
-        Ok(())
-    }
-
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
@@ -100,9 +88,11 @@ impl AuthenticatorTrait for MultiSig {
     where
         T: Serialize,
     {
-        self.validate().map_err(|_| SuiError::InvalidSignature {
-            error: "Invalid multisig".to_string(),
-        })?;
+        if self.multisig_pk.pk_map.len() > MAX_SIGNER_IN_MULTISIG {
+            return Err(SuiError::InvalidSignature {
+                error: "Invalid number of public keys".to_string(),
+            });
+        }
 
         if SuiAddress::from(&self.multisig_pk) != author {
             return Err(SuiError::InvalidSignature {
@@ -360,18 +350,13 @@ impl MultiSigPublicKey {
                 .map(|w| *w as ThresholdUnit)
                 .sum::<ThresholdUnit>()
                 < threshold
-            || pks
-                .iter()
-                .enumerate()
-                .any(|(i, pk)| pks.iter().skip(i + 1).any(|other_pk| *pk == *other_pk))
         {
             return Err(SuiError::InvalidSignature {
                 error: "Invalid multisig public key construction".to_string(),
             });
         }
-
         Ok(MultiSigPublicKey {
-            pk_map: pks.into_iter().zip(weights).collect(),
+            pk_map: pks.into_iter().zip(weights.into_iter()).collect(),
             threshold,
         })
     }
@@ -399,12 +384,6 @@ impl MultiSigPublicKey {
                 .map(|(_pk, weight)| *weight as ThresholdUnit)
                 .sum::<ThresholdUnit>()
                 < self.threshold
-            || pk_map.iter().enumerate().any(|(i, (pk, _weight))| {
-                pk_map
-                    .iter()
-                    .skip(i + 1)
-                    .any(|(other_pk, _weight)| *pk == *other_pk)
-            })
         {
             return Err(FastCryptoError::InvalidInput);
         }

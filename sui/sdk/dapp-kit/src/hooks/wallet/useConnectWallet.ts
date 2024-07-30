@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import type { UseMutationOptions } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import type {
 	StandardConnectInput,
 	StandardConnectOutput,
 	WalletAccount,
 	WalletWithRequiredFeatures,
 } from '@mysten/wallet-standard';
-import type { UseMutationOptions, UseMutationResult } from '@tanstack/react-query';
-import { useMutation } from '@tanstack/react-query';
-
+import { useWalletContext } from '../../components/WalletProvider.js';
+import { WalletAlreadyConnectedError } from '../../errors/walletErrors.js';
+import { setMostRecentWalletConnectionInfo } from '../../utils/walletUtils.js';
 import { walletMutationKeys } from '../../constants/walletMutationKeys.js';
-import { useWalletStore } from './useWalletStore.js';
 
 type ConnectWalletArgs = {
 	/** The wallet to connect to. */
@@ -34,32 +35,43 @@ type UseConnectWalletMutationOptions = Omit<
 export function useConnectWallet({
 	mutationKey,
 	...mutationOptions
-}: UseConnectWalletMutationOptions = {}): UseMutationResult<
-	ConnectWalletResult,
-	Error,
-	ConnectWalletArgs,
-	unknown
-> {
-	const setWalletConnected = useWalletStore((state) => state.setWalletConnected);
-	const setConnectionStatus = useWalletStore((state) => state.setConnectionStatus);
+}: UseConnectWalletMutationOptions = {}) {
+	const { currentWallet, storageAdapter, storageKey, dispatch } = useWalletContext();
 
 	return useMutation({
 		mutationKey: walletMutationKeys.connectWallet(mutationKey),
-		mutationFn: async ({ wallet, accountAddress, ...connectArgs }) => {
-			try {
-				setConnectionStatus('connecting');
-
-				const connectResult = await wallet.features['standard:connect'].connect(connectArgs);
-				const connectedSuiAccounts = connectResult.accounts.filter((account) =>
-					account.chains.some((chain) => chain.split(':')[0] === 'sui'),
+		mutationFn: async ({ wallet, accountAddress, ...standardConnectInput }) => {
+			if (currentWallet) {
+				throw new WalletAlreadyConnectedError(
+					currentWallet.name === wallet.name
+						? `The user is already connected to wallet ${wallet.name}.`
+						: "You must disconnect the wallet you're currently connected to before connecting to a new wallet.",
 				);
-				const selectedAccount = getSelectedAccount(connectedSuiAccounts, accountAddress);
+			}
 
-				setWalletConnected(wallet, connectedSuiAccounts, selectedAccount);
+			dispatch({ type: 'wallet-connection-status-updated', payload: 'connecting' });
 
-				return { accounts: connectedSuiAccounts };
+			try {
+				const connectResult = await wallet.features['standard:connect'].connect(
+					standardConnectInput,
+				);
+				const selectedAccount = getSelectedAccount(connectResult.accounts, accountAddress);
+
+				dispatch({
+					type: 'wallet-connected',
+					payload: { wallet, currentAccount: selectedAccount },
+				});
+
+				await setMostRecentWalletConnectionInfo({
+					storageAdapter,
+					storageKey,
+					walletName: wallet.name,
+					accountAddress: selectedAccount?.address,
+				});
+
+				return connectResult;
 			} catch (error) {
-				setConnectionStatus('disconnected');
+				dispatch({ type: 'wallet-connection-status-updated', payload: 'disconnected' });
 				throw error;
 			}
 		},

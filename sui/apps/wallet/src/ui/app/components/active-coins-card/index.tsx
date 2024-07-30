@@ -1,15 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAddress } from '_app/hooks/useActiveAddress';
-import Loading from '_components/loading';
-import { filterAndSortTokenBalances } from '_helpers';
-import { useCoinsReFetchingConfig } from '_hooks';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useAllBalances } from '@mysten/dapp-kit';
 import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
 import { Link } from 'react-router-dom';
 
 import { CoinItem } from './CoinItem';
+import { useActiveAddress } from '_app/hooks/useActiveAddress';
+import Loading from '_components/loading';
+import { filterAndSortTokenBalances } from '_helpers';
+import { useCoinsReFetchingConfig } from '_hooks';
 
 export function ActiveCoinsCard({
 	activeCoinType = SUI_TYPE_ARG,
@@ -21,8 +21,7 @@ export function ActiveCoinsCard({
 	const selectedAddress = useActiveAddress();
 
 	const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-	const { data: coins, isPending } = useSuiClientQuery(
-		'getAllBalances',
+	const { data: coins, isLoading } = useAllBalances(
 		{ owner: selectedAddress! },
 		{
 			enabled: !!selectedAddress,
@@ -35,7 +34,7 @@ export function ActiveCoinsCard({
 	const activeCoin = coins?.find(({ coinType }) => coinType === activeCoinType);
 
 	return (
-		<Loading loading={isPending}>
+		<Loading loading={isLoading}>
 			<div className="flex w-full">
 				{showActiveCoin ? (
 					activeCoin && (

@@ -10,7 +10,6 @@
 //!
 //! ```
 //! use typed_store::rocks::*;
-//! use typed_store::*;
 //! use typed_store::test_db::*;
 //! use typed_store::sally::SallyDBOptions;
 //! use typed_store_derive::SallyDB;
@@ -52,11 +51,10 @@
 use crate::{
     rocks::{
         default_db_options, keys::Keys, values::Values, DBBatch, DBMap, DBOptions,
-        RocksDBAccessType,
+        RocksDBAccessType, TypedStoreError,
     },
     test_db::{TestDB, TestDBKeys, TestDBValues, TestDBWriteBatch},
     traits::{AsyncMap, Map},
-    TypedStoreError,
 };
 
 use crate::rocks::safe_iter::{SafeIter as RocksDBIter, SafeRevIter};
@@ -375,7 +373,7 @@ impl SallyWriteBatch {
     ) -> Result<(), TypedStoreError> {
         match (self, db) {
             (SallyWriteBatch::RocksDB(db_batch), SallyColumn::RocksDB((db_map, _))) => {
-                db_batch.schedule_delete_range(db_map, from, to)
+                db_batch.delete_range(db_map, from, to)
             }
             (SallyWriteBatch::TestDB(write_batch), SallyColumn::TestDB((test_db, _))) => {
                 write_batch.delete_range(test_db, from, to)

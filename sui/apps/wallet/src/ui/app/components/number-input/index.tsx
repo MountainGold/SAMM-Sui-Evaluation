@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { FieldProps } from 'formik';
 import { NumericFormat } from 'react-number-format';
+
+import type { FieldProps } from 'formik';
 
 export interface NumberInputProps<Values> extends FieldProps<string, Values> {
 	allowNegative: boolean;

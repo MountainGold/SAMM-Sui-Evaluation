@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { getCoinSymbol } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useAllBalances } from '@mysten/dapp-kit';
 import { Info16 } from '@mysten/icons';
+import { Coin } from '@mysten/sui.js';
 import { type CoinBalance } from '@mysten/sui.js/client';
 import { normalizeSuiAddress } from '@mysten/sui.js/utils';
 import { Heading, Text, LoadingIndicator, RadioGroup, RadioGroupItem } from '@mysten/ui';
@@ -27,9 +27,7 @@ export function OwnedCoins({ id }: { id: string }) {
 	const [currentSlice, setCurrentSlice] = useState(1);
 	const [limit, setLimit] = useState(20);
 	const [filterValue, setFilterValue] = useState(COIN_FILTERS.RECOGNIZED);
-	const { isPending, data, isError } = useSuiClientQuery('getAllBalances', {
-		owner: normalizeSuiAddress(id),
-	});
+	const { isLoading, data, isError } = useAllBalances({ owner: normalizeSuiAddress(id) });
 	const recognizedPackages = useRecognizedPackages();
 
 	const balances: Record<COIN_FILTERS, CoinBalanceVerified[]> = useMemo(() => {
@@ -53,21 +51,23 @@ export function OwnedCoins({ id }: { id: string }) {
 
 		const recognizedBalances = balanceData.recognizedBalances.sort((a, b) => {
 			// Make sure SUI always comes first
-			if (getCoinSymbol(a.coinType) === 'SUI') {
+			if (Coin.getCoinSymbol(a.coinType) === 'SUI') {
 				return -1;
-			} else if (getCoinSymbol(b.coinType) === 'SUI') {
+			} else if (Coin.getCoinSymbol(b.coinType) === 'SUI') {
 				return 1;
 			} else {
-				return getCoinSymbol(a.coinType).localeCompare(getCoinSymbol(b.coinType), undefined, {
-					sensitivity: 'base',
-				});
+				return Coin.getCoinSymbol(a.coinType).localeCompare(
+					Coin.getCoinSymbol(b.coinType),
+					undefined,
+					{ sensitivity: 'base' },
+				);
 			}
 		});
 
 		return {
 			recognizedBalances,
 			unrecognizedBalances: balanceData.unrecognizedBalances.sort((a, b) =>
-				getCoinSymbol(a.coinType)!.localeCompare(getCoinSymbol(b.coinType)!, undefined, {
+				Coin.getCoinSymbol(a.coinType).localeCompare(Coin.getCoinSymbol(b.coinType), undefined, {
 					sensitivity: 'base',
 				}),
 			),
@@ -97,7 +97,7 @@ export function OwnedCoins({ id }: { id: string }) {
 
 	return (
 		<div className="h-full w-full md:pr-10">
-			{isPending ? (
+			{isLoading ? (
 				<div className="m-auto flex h-full w-full justify-center text-white">
 					<LoadingIndicator />
 				</div>
@@ -201,7 +201,7 @@ export function OwnedCoins({ id }: { id: string }) {
 					)}
 
 					{!hasCoinsBalance && (
-						<div className="flex h-20 items-center justify-center md:h-full">
+						<div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
 							<Text variant="body/medium" color="steel-dark">
 								No Coins owned
 							</Text>

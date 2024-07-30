@@ -4,11 +4,13 @@
 use crate::base_types::{
     random_object_ref, EpochId, ObjectID, ObjectRef, SequenceNumber, SuiAddress, TransactionDigest,
 };
-use crate::digests::{ObjectDigest, TransactionEventsDigest};
-use crate::effects::{InputSharedObject, TransactionEffectsAPI};
+use crate::digests::TransactionEventsDigest;
+use crate::effects::{InputSharedObjectKind, TransactionEffectsAPI};
 use crate::execution_status::ExecutionStatus;
 use crate::gas::GasCostSummary;
+use crate::message_envelope::Message;
 use crate::object::Owner;
+use crate::transaction::SenderSignedData;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter, Write};
@@ -39,7 +41,7 @@ pub struct TransactionEffectsV1 {
     /// Unwrapped objects are objects that were wrapped into other objects in the past,
     /// and just got extracted out.
     unwrapped: Vec<(ObjectRef, Owner)>,
-    /// Object Refs of objects now deleted (the new refs).
+    /// Object Refs of objects now deleted (the old refs).
     deleted: Vec<ObjectRef>,
     /// Object refs of objects previously wrapped in other objects but now deleted.
     unwrapped_then_deleted: Vec<ObjectRef>,
@@ -91,6 +93,22 @@ impl TransactionEffectsV1 {
             dependencies,
         }
     }
+
+    pub fn new_with_tx_and_gas(tx: &SenderSignedData, gas_object: (ObjectRef, Owner)) -> Self {
+        Self {
+            transaction_digest: tx.digest(),
+            gas_object,
+            ..Default::default()
+        }
+    }
+
+    pub fn new_with_tx_and_status(tx: &SenderSignedData, status: ExecutionStatus) -> Self {
+        Self {
+            transaction_digest: tx.digest(),
+            status,
+            ..Default::default()
+        }
+    }
 }
 
 impl TransactionEffectsAPI for TransactionEffectsV1 {
@@ -100,27 +118,21 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
     fn into_status(self) -> ExecutionStatus {
         self.status
     }
-    fn executed_epoch(&self) -> EpochId {
-        self.executed_epoch
-    }
-
     fn modified_at_versions(&self) -> Vec<(ObjectID, SequenceNumber)> {
         self.modified_at_versions.clone()
     }
-    fn old_object_metadata(&self) -> Vec<(ObjectRef, Owner)> {
-        unimplemented!("Only supposed by v2 and above");
-    }
 
-    fn input_shared_objects(&self) -> Vec<InputSharedObject> {
+    fn input_shared_objects(&self) -> Vec<(ObjectRef, InputSharedObjectKind)> {
         let modified: HashSet<_> = self.modified_at_versions.iter().map(|(r, _)| r).collect();
         self.shared_objects
             .iter()
             .map(|r| {
-                if modified.contains(&r.0) {
-                    InputSharedObject::Mutate(*r)
+                let kind = if modified.contains(&r.0) {
+                    InputSharedObjectKind::Mutate
                 } else {
-                    InputSharedObject::ReadOnly(*r)
-                }
+                    InputSharedObjectKind::ReadOnly
+                };
+                (*r, kind)
             })
             .collect()
     }
@@ -148,9 +160,12 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
     fn events_digest(&self) -> Option<&TransactionEventsDigest> {
         self.events_digest.as_ref()
     }
-
     fn dependencies(&self) -> &[TransactionDigest] {
         &self.dependencies
+    }
+
+    fn executed_epoch(&self) -> EpochId {
+        self.executed_epoch
     }
 
     fn transaction_digest(&self) -> &TransactionDigest {
@@ -174,28 +189,22 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         &mut self.dependencies
     }
 
-    fn unsafe_add_input_shared_object_for_testing(&mut self, kind: InputSharedObject) {
+    fn unsafe_add_input_shared_object_for_testing(
+        &mut self,
+        obj_ref: ObjectRef,
+        kind: InputSharedObjectKind,
+    ) {
+        self.shared_objects.push(obj_ref);
         match kind {
-            InputSharedObject::Mutate(obj_ref) => {
-                self.shared_objects.push(obj_ref);
+            InputSharedObjectKind::Mutate => {
                 self.modified_at_versions.push((obj_ref.0, obj_ref.1));
             }
-            InputSharedObject::ReadOnly(obj_ref) => {
-                self.shared_objects.push(obj_ref);
-            }
-            InputSharedObject::ReadDeleted(id, version)
-            | InputSharedObject::MutateDeleted(id, version) => {
-                self.shared_objects
-                    .push((id, version, ObjectDigest::OBJECT_DIGEST_DELETED));
-            }
+            InputSharedObjectKind::ReadOnly => (),
         }
     }
 
-    fn unsafe_add_deleted_live_object_for_testing(&mut self, object: ObjectRef) {
+    fn unsafe_add_deleted_object_for_testing(&mut self, object: ObjectRef) {
         self.modified_at_versions.push((object.0, object.1));
-    }
-
-    fn unsafe_add_object_tombstone_for_testing(&mut self, object: ObjectRef) {
         self.deleted.push(object);
     }
 }

@@ -1,13 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type QredoSerializedUiAccount } from '_src/background/accounts/QredoAccount';
-import { API_ENV, networkNames } from '_src/shared/api-env';
-import {
-	type NetworkType,
-	type QredoAPI,
-	type TransactionInfoResponse,
-} from '_src/shared/qredo-api';
 import { type SuiClient } from '@mysten/sui.js/client';
 import {
 	IntentScope,
@@ -18,6 +11,13 @@ import { toB64 } from '@mysten/sui.js/utils';
 import mitt from 'mitt';
 
 import { WalletSigner } from './WalletSigner';
+import { type QredoSerializedUiAccount } from '_src/background/accounts/QredoAccount';
+import { API_ENV, networkNames } from '_src/shared/api-env';
+import {
+	type TransactionInfoResponse,
+	type NetworkType,
+	type QredoAPI,
+} from '_src/shared/qredo-api';
 
 export class QredoActionIgnoredByUser extends Error {}
 

@@ -4,7 +4,6 @@
 import { hasDisplayData, isKioskOwnerToken, useGetOwnedObjects } from '@mysten/core';
 import { type SuiObjectData } from '@mysten/sui.js/client';
 import { useMemo } from 'react';
-
 import { useHiddenAssets } from '../pages/home/hidden-assets/HiddenAssetsProvider';
 
 type OwnedAssets = {
@@ -21,13 +20,13 @@ export enum AssetFilterTypes {
 export function useGetNFTs(address?: string | null) {
 	const {
 		data,
-		isPending,
+		isLoading,
 		error,
 		isError,
 		isFetchingNextPage,
 		hasNextPage,
 		fetchNextPage,
-		isLoading,
+		isInitialLoading,
 	} = useGetOwnedObjects(
 		address,
 		{
@@ -58,11 +57,11 @@ export function useGetNFTs(address?: string | null) {
 
 	return {
 		data: assets,
-		isLoading,
+		isInitialLoading,
 		hasNextPage,
 		isFetchingNextPage,
 		fetchNextPage,
-		isPending: isPending,
+		isLoading: isLoading,
 		isError: isError,
 		error,
 	};

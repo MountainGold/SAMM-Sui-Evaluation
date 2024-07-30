@@ -1,13 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '_src/ui/app/shared/text';
 import { Check12 } from '@mysten/icons';
 import { get, set } from 'idb-keyval';
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { type ReactNode, createContext, useCallback, useEffect, useState, useContext } from 'react';
 import { toast } from 'react-hot-toast';
-
 import { Link as InlineLink } from '../../../shared/Link';
+import { Text } from '_src/ui/app/shared/text';
 
 const HIDDEN_ASSET_IDS = 'hidden-asset-ids';
 

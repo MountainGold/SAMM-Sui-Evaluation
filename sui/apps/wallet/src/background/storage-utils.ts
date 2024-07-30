@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { v4 as uuidV4 } from 'uuid';
+import Browser from 'webextension-polyfill';
 import {
 	decrypt,
 	encrypt,
@@ -8,8 +10,7 @@ import {
 	makeEphemeraPassword,
 	type Serializable,
 } from '_src/shared/cryptography/keystore';
-import { v4 as uuidV4 } from 'uuid';
-import Browser from 'webextension-polyfill';
+
 import type { Storage } from 'webextension-polyfill';
 
 const SESSION_STORAGE: Storage.LocalStorageArea | null =

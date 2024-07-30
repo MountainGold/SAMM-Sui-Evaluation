@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { forwardRef } from 'react';
-
 import { Link, type LinkProps } from '../../shared/Link';
 
 const FooterLink = forwardRef((props: LinkProps & { icon?: React.ReactNode }, forwardedRef) => {

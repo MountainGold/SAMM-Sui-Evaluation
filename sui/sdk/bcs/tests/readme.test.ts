@@ -7,8 +7,7 @@
  */
 
 import { describe, it } from 'vitest';
-
-import { SUI_ADDRESS_LENGTH } from '../../typescript/src/utils';
+import { SUI_ADDRESS_LENGTH } from '../../typescript/src';
 import { BCS, BcsWriter, getRustConfig, getSuiMoveConfig } from './../src/index';
 
 describe('BCS: README Examples', () => {

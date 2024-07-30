@@ -1,19 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::context_data::db_data_provider::PgManager;
+use crate::context_data::context_ext::DataProviderContextExt;
 use crate::types::object::Object;
-use async_graphql::connection::Connection;
 use async_graphql::*;
-use sui_json_rpc_types::{OwnedObjectRef, SuiGasData};
+use sui_json_rpc_types::{OwnedObjectRef, SuiGasData, SuiObjectDataOptions};
 use sui_sdk::types::{
     base_types::{ObjectID, SuiAddress as NativeSuiAddress},
     gas::GasCostSummary as NativeGasCostSummary,
-    transaction::GasData,
 };
 
-use super::digest::Digest;
-use super::object::ObjectFilter;
 use super::{address::Address, big_int::BigInt, sui_address::SuiAddress};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -35,55 +31,27 @@ impl From<&SuiGasData> for GasInput {
     }
 }
 
-impl From<&GasData> for GasInput {
-    fn from(s: &GasData) -> Self {
-        Self {
-            owner: s.owner,
-            price: s.price,
-            budget: s.budget,
-            payment_obj_ids: s.payment.iter().map(|o| o.0).collect(),
-        }
-    }
-}
-
 #[Object]
 impl GasInput {
-    /// Address of the owner of the gas object(s) used
     async fn gas_sponsor(&self) -> Option<Address> {
         Some(Address::from(SuiAddress::from(self.owner)))
     }
 
-    /// Objects used to pay for a transaction's execution and storage
-    async fn gas_payment(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<String>,
-        last: Option<u64>,
-        before: Option<String>,
-    ) -> Result<Option<Connection<String, Object>>> {
-        let filter = ObjectFilter {
-            object_ids: Some(
-                self.payment_obj_ids
-                    .iter()
-                    .map(|id| SuiAddress::from_array(***id))
-                    .collect(),
-            ),
-            ..Default::default()
-        };
-
-        ctx.data_unchecked::<PgManager>()
-            .fetch_objs(first, after, last, before, Some(filter))
-            .await
-            .extend()
+    async fn gas_payment(&self, ctx: &Context<'_>) -> Result<Option<Vec<Object>>> {
+        let payment_objs = ctx
+            .data_provider()
+            .multi_get_object_with_options(
+                self.payment_obj_ids.to_vec(),
+                SuiObjectDataOptions::full_content(),
+            )
+            .await?;
+        Ok(Some(payment_objs))
     }
 
-    /// An unsigned integer specifying the number of native tokens per gas unit this transaction will pay
     async fn gas_price(&self) -> Option<BigInt> {
         Some(BigInt::from(self.price))
     }
 
-    /// The maximum number of gas units that can be expended by executing this transaction
     async fn gas_budget(&self) -> Option<BigInt> {
         Some(BigInt::from(self.budget))
     }
@@ -127,17 +95,11 @@ impl GasCostSummary {
     }
 }
 
+// Struct mirroring GraphQL object contains fields needed to produce GraphQL object
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct GasEffects {
     pub gcs: GasCostSummary,
-    pub object_ref: ObjectRef,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct ObjectRef {
-    pub object_id: SuiAddress,
-    pub version: u64,
-    pub digest: Digest,
+    pub object_id: ObjectID,
 }
 
 // From trait to convert data into GasEffects
@@ -145,11 +107,7 @@ impl From<(&NativeGasCostSummary, &OwnedObjectRef)> for GasEffects {
     fn from((gcs, gas_obj_ref): (&NativeGasCostSummary, &OwnedObjectRef)) -> Self {
         Self {
             gcs: gcs.into(),
-            object_ref: ObjectRef {
-                object_id: SuiAddress::from_array(**gas_obj_ref.object_id()),
-                version: gas_obj_ref.version().value(),
-                digest: Digest::from_array(gas_obj_ref.reference.digest.into_inner()),
-            },
+            object_id: gas_obj_ref.object_id(),
         }
     }
 }
@@ -158,10 +116,11 @@ impl From<(&NativeGasCostSummary, &OwnedObjectRef)> for GasEffects {
 #[Object]
 impl GasEffects {
     async fn gas_object(&self, ctx: &Context<'_>) -> Result<Option<Object>> {
-        ctx.data_unchecked::<PgManager>()
-            .fetch_obj(self.object_ref.object_id, Some(self.object_ref.version))
-            .await
-            .extend()
+        let gas_obj = ctx
+            .data_provider()
+            .get_object_with_options(self.object_id, SuiObjectDataOptions::full_content())
+            .await?;
+        Ok(gas_obj)
     }
 
     async fn gas_summary(&self) -> Option<GasCostSummary> {

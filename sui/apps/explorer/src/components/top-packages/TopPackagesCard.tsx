@@ -22,7 +22,7 @@ export function TopPackagesCard() {
 	const rpc = useEnhancedRpcClient();
 	const [selectedFilter, setSelectedFilter] = useState<DateFilter>('3D');
 
-	const { data, isPending } = useQuery({
+	const { data, isLoading } = useQuery({
 		queryKey: ['top-packages', selectedFilter],
 		queryFn: async () => rpc.getMoveCallMetrics(),
 	});
@@ -44,7 +44,7 @@ export function TopPackagesCard() {
 				tooltip="Popular packages is recomputed on epoch changes."
 			>
 				<ErrorBoundary>
-					<TopPackagesTable data={filteredData} isLoading={isPending} />
+					<TopPackagesTable data={filteredData} isLoading={isLoading} />
 				</ErrorBoundary>
 			</TabHeader>
 		</div>

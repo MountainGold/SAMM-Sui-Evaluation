@@ -12,8 +12,7 @@ use nexlint_lints::{
         DirectDepDupsConfig, DirectDuplicateGitDependencies,
     },
 };
-static EXTERNAL_CRATE_DIR: &str = "external-crates/";
-static CREATE_DAPP_TEMPLATE_DIR: &str = "sdk/create-dapp/templates";
+static IGNORE_DIR: &str = "external-crates/";
 static LICENSE_HEADER: &str = "Copyright (c) Mysten Labs, Inc.\n\
                                SPDX-License-Identifier: Apache-2.0\n\
                                ";
@@ -71,10 +70,6 @@ pub fn run(args: Args) -> crate::Result<()> {
             // TODO spend the time to de-dup these direct dependencies
             "serde_yaml".to_owned(),
             "syn".to_owned(),
-            // Our opentelemetry integration requires that we use the same version of these packages
-            // as the opentelemetry crates.
-            "prost".to_owned(),
-            "tonic".to_owned(),
         ],
     };
 
@@ -131,9 +126,7 @@ pub fn handle_lint_results_exclude_external_crate_checks(
     let mut errs = false;
     for (source, message) in &results.messages {
         if let LintKind::Content(path) = source.kind() {
-            if (path.starts_with(EXTERNAL_CRATE_DIR) || path.starts_with(CREATE_DAPP_TEMPLATE_DIR))
-                && source.name() == "license-header"
-            {
+            if path.starts_with(IGNORE_DIR) && source.name() == "license-header" {
                 continue;
             }
         }

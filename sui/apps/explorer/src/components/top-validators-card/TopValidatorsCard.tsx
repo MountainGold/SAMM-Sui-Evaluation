@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useLatestSuiSystemState } from '@mysten/dapp-kit';
 import { ArrowRight12 } from '@mysten/icons';
 import { type SuiValidatorSummary } from '@mysten/sui.js/client';
 import { Text } from '@mysten/ui';
@@ -105,14 +105,14 @@ type TopValidatorsCardProps = {
 };
 
 export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps) {
-	const { data, isPending, isSuccess, isError } = useSuiClientQuery('getLatestSuiSystemState');
+	const { data, isLoading, isSuccess, isError } = useLatestSuiSystemState();
 
 	const tableData = useMemo(
 		() => (data ? validatorsTable(data.activeValidators, limit, showIcon) : null),
 		[data, limit, showIcon],
 	);
 
-	if (isError || (!isPending && !tableData?.data.length)) {
+	if (isError || (!isLoading && !tableData?.data.length)) {
 		return (
 			<Banner variant="error" fullWidth>
 				Validator data could not be loaded
@@ -122,7 +122,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps) {
 
 	return (
 		<>
-			{isPending && (
+			{isLoading && (
 				<PlaceholderTable
 					rowCount={limit || NUMBER_OF_VALIDATORS}
 					rowHeight="13px"

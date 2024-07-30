@@ -142,7 +142,7 @@ impl StressTestRunner {
                 .programmable(pt)
                 .build(),
         );
-        let (effects, _) = self
+        let (effects, _, _) = self
             .test_cluster
             .execute_transaction_return_raw_effects(transaction)
             .await
@@ -187,8 +187,7 @@ impl StressTestRunner {
         }
 
         println!("SHARED:");
-        for kind in effects.input_shared_objects() {
-            let (obj_id, version) = kind.id_and_version();
+        for ((obj_id, version, _), _) in effects.input_shared_objects() {
             let object = state
                 .database
                 .get_object_by_key(&obj_id, version)

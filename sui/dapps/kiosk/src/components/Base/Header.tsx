@@ -1,12 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import classNames from 'clsx';
 import { useLocation, useNavigate } from 'react-router-dom';
-
 import FindKiosk from '../Kiosk/FindKiosk';
-import { Button } from './Button';
 import { SuiConnectButton } from './SuiConnectButton';
+import { Button } from './Button';
+import classNames from 'classnames';
 
 export function Header() {
 	const navigate = useNavigate();

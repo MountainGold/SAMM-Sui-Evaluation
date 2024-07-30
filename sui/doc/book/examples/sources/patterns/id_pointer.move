@@ -95,7 +95,7 @@ module examples::lock_and_key {
     public fun take<T: store + key>(
         lock: &mut Lock<T>,
         key: &Key<T>,
-        ctx: &TxContext,
+        ctx: &mut TxContext,
     ) {
         transfer::public_transfer(unlock(lock, key), tx_context::sender(ctx))
     }

@@ -34,7 +34,6 @@ mod checked {
         self, get_all_uids, max_event_error, ObjectRuntime, RuntimeResults,
     };
     use sui_protocol_config::ProtocolConfig;
-    use sui_types::storage::PackageObjectArc;
     use sui_types::{
         balance::Balance,
         base_types::{MoveObjectType, ObjectID, SequenceNumber, SuiAddress, TxContext},
@@ -161,18 +160,17 @@ mod checked {
                 // so to mimic this "off limits" behavior, we act as if the coin has less balance than
                 // it really does
                 let Some(Value::Object(ObjectValue {
-                    contents: ObjectContents::Coin(coin),
-                    ..
-                })) = &mut gas.inner.value
-                else {
-                    invariant_violation!("Gas object should be a populated coin")
-                };
+                contents: ObjectContents::Coin(coin),
+                ..
+            })) = &mut gas.inner.value else {
+                invariant_violation!("Gas object should be a populated coin")
+            };
                 let max_gas_in_balance = gas_charger.gas_budget();
                 let Some(new_balance) = coin.balance.value().checked_sub(max_gas_in_balance) else {
-                    invariant_violation!(
-                        "Transaction input checker should check that there is enough gas"
-                    );
-                };
+                invariant_violation!(
+                    "Transaction input checker should check that there is enough gas"
+                );
+            };
                 coin.balance = Balance::new(new_balance);
                 gas
             } else {
@@ -269,7 +267,7 @@ mod checked {
             let package = package_for_linkage(&self.session, package_id)
                 .map_err(|e| self.convert_vm_error(e))?;
 
-            set_linkage(&mut self.session, package.move_package())
+            set_linkage(&mut self.session, &package)
         }
 
         /// Set the link context for the session from the linkage information in the `package`.  Returns
@@ -331,8 +329,8 @@ mod checked {
                         .type_to_type_layout(&ty)
                         .map_err(|e| self.convert_vm_error(e))?;
                     let Some(bytes) = value.simple_serialize(&layout) else {
-                        invariant_violation!("Failed to deserialize already serialized Move value");
-                    };
+                    invariant_violation!("Failed to deserialize already serialized Move value");
+                };
                     Ok((module_id.clone(), tag, bytes))
                 })
                 .collect::<Result<Vec<_>, ExecutionError>>()?;
@@ -382,7 +380,7 @@ mod checked {
             // Immutable objects and shared objects cannot be taken by value
             if matches!(
                 input_metadata_opt,
-                Some(InputObjectMetadata::InputObject {
+                Some(InputObjectMetadata {
                     owner: Owner::Immutable | Owner::Shared { .. },
                     ..
                 })
@@ -426,11 +424,7 @@ mod checked {
                 // error if taken
                 return Err(CommandArgumentError::InvalidValueUsage);
             };
-            if let Some(InputObjectMetadata::InputObject {
-                is_mutable_input: false,
-                ..
-            }) = input_metadata_opt
-            {
+            if input_metadata_opt.is_some() && !input_metadata_opt.unwrap().is_mutable_input {
                 return Err(CommandArgumentError::InvalidObjectByMutRef);
             }
             // if it is copyable, don't take it as we allow for the value to be copied even if
@@ -488,8 +482,8 @@ mod checked {
             );
             // restore is exclusively used for mut
             let Ok((_, value_opt)) = self.borrow_mut_impl(arg, None) else {
-                invariant_violation!("Should be able to borrow argument to restore it")
-            };
+            invariant_violation!("Should be able to borrow argument to restore it")
+        };
             let old_value = value_opt.replace(value);
             assert_invariant!(
                 old_value.is_none() || old_value.unwrap().is_copyable(),
@@ -591,29 +585,21 @@ mod checked {
                     object_metadata: object_metadata_opt,
                     inner: ResultValue { value, .. },
                 } = input;
-                let Some(object_metadata) = object_metadata_opt else {
-                    return Ok(());
-                };
-                let InputObjectMetadata::InputObject {
-                    is_mutable_input,
-                    owner,
-                    id,
-                    ..
-                } = &object_metadata
-                else {
-                    unreachable!("Found non-input object metadata for input object when adding writes to input objects -- impossible in v0");
-                };
-                input_object_metadata.insert(object_metadata.id(), object_metadata.clone());
+                let Some(object_metadata) = object_metadata_opt else { return Ok(()) };
+                let is_mutable_input = object_metadata.is_mutable_input;
+                let owner = object_metadata.owner;
+                let id = object_metadata.id;
+                input_object_metadata.insert(object_metadata.id, object_metadata);
                 let Some(Value::Object(object_value)) = value else {
-                    by_value_inputs.insert(*id);
-                    return Ok(());
-                };
-                if *is_mutable_input {
-                    add_additional_write(&mut additional_writes, *owner, object_value)?;
+                by_value_inputs.insert(id);
+                return Ok(())
+            };
+                if is_mutable_input {
+                    add_additional_write(&mut additional_writes, owner, object_value)?;
                 }
                 Ok(())
             };
-            let gas_id_opt = gas.object_metadata.as_ref().map(|info| info.id());
+            let gas_id_opt = gas.object_metadata.as_ref().map(|info| info.id);
             add_input_object_write(gas)?;
             for input in inputs {
                 add_input_object_write(input)?
@@ -662,9 +648,6 @@ mod checked {
                                         msg,
                                     ));
                                 }
-                            }
-                            Some(Value::Receiving(_, _, _)) => {
-                                unreachable!("Impossible to hit Receiving in v0")
                             }
                         }
                     }
@@ -770,8 +753,8 @@ mod checked {
                     .type_to_type_layout(&ty)
                     .map_err(|e| convert_vm_error(e, vm, tmp_session.get_resolver()))?;
                 let Some(bytes) = value.simple_serialize(&layout) else {
-                    invariant_violation!("Failed to deserialize already serialized Move value");
-                };
+                invariant_violation!("Failed to deserialize already serialized Move value");
+            };
                 // safe because has_public_transfer has been determined by the abilities
                 let move_object = unsafe {
                     create_written_object(
@@ -802,10 +785,10 @@ mod checked {
                         let old_version = match input_object_metadata.get(&id) {
                         Some(metadata) => {
                             assert_invariant!(
-                                !matches!(metadata, InputObjectMetadata::InputObject { owner: Owner::Immutable, .. }),
+                                !matches!(metadata.owner, Owner::Immutable),
                                 "Attempting to delete immutable object {id} via delete kind {delete_kind}"
                             );
-                            metadata.version()
+                            metadata.version
                         }
                         None => {
                             match loaded_child_objects.get(&id) {
@@ -924,14 +907,14 @@ mod checked {
                 Argument::GasCoin => (self.gas.object_metadata.as_ref(), &mut self.gas.inner),
                 Argument::Input(i) => {
                     let Some(input_value) = self.inputs.get_mut(i as usize) else {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i });
-                    };
+                    return Err(CommandArgumentError::IndexOutOfBounds { idx: i });
+                };
                     (input_value.object_metadata.as_ref(), &mut input_value.inner)
                 }
                 Argument::Result(i) => {
                     let Some(command_result) = self.results.get_mut(i as usize) else {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i });
-                    };
+                    return Err(CommandArgumentError::IndexOutOfBounds { idx: i });
+                };
                     if command_result.len() != 1 {
                         return Err(CommandArgumentError::InvalidResultArity { result_idx: i });
                     }
@@ -939,14 +922,14 @@ mod checked {
                 }
                 Argument::NestedResult(i, j) => {
                     let Some(command_result) = self.results.get_mut(i as usize) else {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i });
-                    };
+                    return Err(CommandArgumentError::IndexOutOfBounds { idx: i });
+                };
                     let Some(result_value) = command_result.get_mut(j as usize) else {
-                        return Err(CommandArgumentError::SecondaryIndexOutOfBounds {
-                            result_idx: i,
-                            secondary_idx: j,
-                        });
-                    };
+                    return Err(CommandArgumentError::SecondaryIndexOutOfBounds {
+                        result_idx: i,
+                        secondary_idx: j,
+                    });
+                };
                     (None, result_value)
                 }
             };
@@ -1024,11 +1007,11 @@ mod checked {
     fn package_for_linkage(
         session: &Session<LinkageView>,
         package_id: ObjectID,
-    ) -> VMResult<PackageObjectArc> {
+    ) -> VMResult<MovePackage> {
         use move_binary_format::errors::PartialVMError;
         use move_core_types::vm_status::StatusCode;
 
-        match session.get_resolver().get_package_object(&package_id) {
+        match session.get_resolver().get_package(&package_id) {
             Ok(Some(package)) => Ok(package),
             Ok(None) => Err(PartialVMError::new(StatusCode::LINKER_ERROR)
                 .with_message(format!("Cannot find link context {package_id} in store"))
@@ -1077,12 +1060,11 @@ mod checked {
 
                 // Set the defining package as the link context on the session while loading the
                 // struct
-                let original_address =
-                    set_linkage(session, package.move_package()).map_err(|e| {
-                        PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                            .with_message(e.to_string())
-                            .finish(Location::Undefined)
-                    })?;
+                let original_address = set_linkage(session, &package).map_err(|e| {
+                    PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                        .with_message(e.to_string())
+                        .finish(Location::Undefined)
+                })?;
 
                 let runtime_id = ModuleId::new(original_address, module.clone());
                 let res = session.load_struct(&runtime_id, name);
@@ -1127,8 +1109,8 @@ mod checked {
     ) -> Result<ObjectValue, ExecutionError> {
         let contents = if type_.is_coin() {
             let Ok(coin) = Coin::from_bcs_bytes(contents) else {
-                invariant_violation!("Could not deserialize a coin")
-            };
+            invariant_violation!("Could not deserialize a coin")
+        };
             ObjectContents::Coin(coin)
         } else {
             ObjectContents::Raw(contents.to_vec())
@@ -1150,13 +1132,9 @@ mod checked {
         session: &mut Session<'state, 'vm, LinkageView<'state>>,
         object: &Object,
     ) -> Result<ObjectValue, ExecutionError> {
-        let Object {
-            data: Data::Move(object),
-            ..
-        } = object
-        else {
-            invariant_violation!("Expected a Move object");
-        };
+        let Object { data: Data::Move(object), .. } = object else {
+        invariant_violation!("Expected a Move object");
+    };
 
         let used_in_non_entry_move_call = false;
         make_object_value(
@@ -1179,9 +1157,9 @@ mod checked {
         id: ObjectID,
     ) -> Result<InputValue, ExecutionError> {
         let Some(obj) = state_view.read_object(&id) else {
-            // protected by transaction input checker
-            invariant_violation!("Object {} does not exist yet", id);
-        };
+        // protected by transaction input checker
+        invariant_violation!("Object {} does not exist yet", id);
+    };
         // override_as_immutable ==> Owner::Shared
         assert_invariant!(
             !override_as_immutable || matches!(obj.owner, Owner::Shared { .. }),
@@ -1198,11 +1176,12 @@ mod checked {
         };
         let owner = obj.owner;
         let version = obj.version();
-        let object_metadata = InputObjectMetadata::InputObject {
+        let object_metadata = InputObjectMetadata {
             id,
             is_mutable_input,
             owner,
             version,
+            digest: obj.digest(),
         };
         let obj_value = value_from_object(vm, session, obj)?;
         let contained_uids = {
@@ -1271,7 +1250,6 @@ mod checked {
                 /* imm override */ !mutable,
                 id,
             ),
-            ObjectArg::Receiving(_) => unreachable!("Impossible to hit Receiving in v0"),
         }
     }
 
@@ -1311,13 +1289,16 @@ mod checked {
         gas_charger: &mut GasCharger,
         gas_id: ObjectID,
     ) -> Result<(), ExecutionError> {
-        let Some(AdditionalWrite { bytes, .. }) = additional_writes.get_mut(&gas_id) else {
-            invariant_violation!("Gas object cannot be wrapped or destroyed")
-        };
+        let Some(AdditionalWrite { bytes,.. }) = additional_writes.get_mut(&gas_id) else {
+        invariant_violation!("Gas object cannot be wrapped or destroyed")
+    };
         let Ok(mut coin) = Coin::from_bcs_bytes(bytes) else {
-            invariant_violation!("Gas object must be a coin")
-        };
-        let Some(new_balance) = coin.balance.value().checked_add(gas_charger.gas_budget()) else {
+        invariant_violation!("Gas object must be a coin")
+    };
+        let Some(new_balance) = coin
+        .balance
+        .value()
+        .checked_add(gas_charger.gas_budget()) else {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::CoinBalanceOverflow,
                 "Gas coin too large after returning the max gas budget",
@@ -1357,7 +1338,7 @@ mod checked {
         );
 
         let old_obj_ver = metadata_opt
-            .map(|metadata| metadata.version())
+            .map(|metadata| metadata.version)
             .or_else(|| loaded_child_version_opt.copied());
 
         debug_assert!(
@@ -1376,7 +1357,7 @@ mod checked {
         MoveObject::new_from_execution(
             struct_tag.into(),
             has_public_transfer,
-            old_obj_ver.unwrap_or_default(),
+            old_obj_ver.unwrap_or_else(SequenceNumber::new),
             contents,
             protocol_config,
         )

@@ -4,7 +4,9 @@
 use clap::*;
 use prometheus::Registry;
 use sui_analytics_indexer::{
-    analytics_metrics::AnalyticsMetrics, errors::AnalyticsIndexerError, make_analytics_processor,
+    analytics_handler::AnalyticsProcessor,
+    analytics_metrics::{start_prometheus_server, AnalyticsMetrics},
+    errors::AnalyticsIndexerError,
     AnalyticsIndexerConfig,
 };
 use sui_indexer::framework::IndexerBuilder;
@@ -18,7 +20,7 @@ async fn main() -> Result<(), AnalyticsIndexerError> {
 
     let config = AnalyticsIndexerConfig::parse();
     info!("Parsed config: {:#?}", config);
-    let registry_service = mysten_metrics::start_prometheus_server(
+    let registry_service = start_prometheus_server(
         format!(
             "{}:{}",
             config.client_metric_host, config.client_metric_port
@@ -30,12 +32,13 @@ async fn main() -> Result<(), AnalyticsIndexerError> {
     mysten_metrics::init_metrics(&registry);
     let metrics = AnalyticsMetrics::new(&registry);
 
+    // TODO: find out the last checkpoint downloaded from the database
+    //       or some stable source..
+    let last_downloaded_checkpoint = config.starting_checkpoint;
     let rest_url = config.rest_url.clone();
-    let processor = make_analytics_processor(config, metrics)
-        .await
-        .map_err(|e| AnalyticsIndexerError::GenericError(e.to_string()))?;
+    let processor = AnalyticsProcessor::new(config, metrics);
     IndexerBuilder::new()
-        .last_downloaded_checkpoint(processor.last_committed_checkpoint())
+        .last_downloaded_checkpoint(last_downloaded_checkpoint)
         .rest_url(&rest_url)
         .handler(processor)
         .run()

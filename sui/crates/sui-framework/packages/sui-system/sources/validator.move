@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-#[allow(unused_const)]
 module sui_system::validator {
     use std::ascii;
     use std::vector;
@@ -357,7 +356,7 @@ module sui_system::validator {
     public(friend) fun request_withdraw_stake(
         self: &mut Validator,
         staked_sui: StakedSui,
-        ctx: &TxContext,
+        ctx: &mut TxContext,
     ) : Balance<SUI> {
         let principal_amount = staking_pool::staked_sui_amount(&staked_sui);
         let stake_activation_epoch = staking_pool::stake_activation_epoch(&staked_sui);
@@ -427,7 +426,7 @@ module sui_system::validator {
     }
 
     /// Process pending stakes and withdraws, called at the end of the epoch.
-    public(friend) fun process_pending_stakes_and_withdraws(self: &mut Validator, ctx: &TxContext) {
+    public(friend) fun process_pending_stakes_and_withdraws(self: &mut Validator, ctx: &mut TxContext) {
         staking_pool::process_pending_stakes_and_withdraws(&mut self.staking_pool, ctx);
         assert!(stake_amount(self) == self.next_epoch_stake, EInvalidStakeAmount);
     }

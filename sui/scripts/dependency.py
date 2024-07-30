@@ -86,6 +86,7 @@ def switch_to_local(project):
             "move-coverage": "tools/move-coverage",
             "move-errmapgen": "move-prover/move-errmapgen",
             "move-package": "tools/move-package",
+            "move-read-write-set-types": "tools/read-write-set/types",
             "move-resource-viewer": "tools/move-resource-viewer",
             "move-stackless-bytecode": "move-prover/bytecode",
             "move-stackless-bytecode-interpreter": "move-prover/interpreter",
@@ -95,6 +96,8 @@ def switch_to_local(project):
             "move-vm-types": "move-vm/types",
             "move-table-extension": "extensions/move-table-extension",
             "move-transactional-test-runner": "testing-infra/transactional-test-runner",
+            "read-write-set": "tools/read-write-set",
+            "read-write-set-dynamic": "tools/read-write-set/dynamic",
         },
         "narwhal": {},
     }

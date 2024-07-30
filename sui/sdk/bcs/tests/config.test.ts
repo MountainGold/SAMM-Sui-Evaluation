@@ -1,8 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from 'vitest';
-
+import { describe, it, expect } from 'vitest';
 import { BCS, getRustConfig, getSuiMoveConfig } from '../src/index';
 import { serde } from './utils';
 

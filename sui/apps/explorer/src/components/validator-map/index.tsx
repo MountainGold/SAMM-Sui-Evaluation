@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useAppsBackend } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useLatestSuiSystemState } from '@mysten/dapp-kit';
 import { Heading, Text, Placeholder } from '@mysten/ui';
 import { useQuery } from '@tanstack/react-query';
 import { ParentSize } from '@visx/responsive';
@@ -39,12 +39,11 @@ interface Props {
 // NOTE: This component is lazy imported, so it needs to be default exported:
 export default function ValidatorMap({ minHeight }: Props) {
 	const [network] = useNetwork();
-	const { data: systemState, isError: systemStateError } =
-		useSuiClientQuery('getLatestSuiSystemState');
+	const { data: systemState, isError: systemStateError } = useLatestSuiSystemState();
 
 	const { request } = useAppsBackend();
 
-	const { data, isPending, isError } = useQuery({
+	const { data, isLoading, isError } = useQuery({
 		queryKey: ['validator-map'],
 		queryFn: () =>
 			request<ValidatorMapResponse>('validator-map', {
@@ -122,7 +121,7 @@ export default function ValidatorMap({ minHeight }: Props) {
 					<div className="flex flex-col gap-2">
 						<Text variant="caption/medium" color="steel-darker">
 							Countries
-							{isPending && <Placeholder width="60px" height="0.8em" />}
+							{isLoading && <Placeholder width="60px" height="0.8em" />}
 						</Text>
 						<Text variant="body/bold" color="steel-darker">
 							{(!isError && countryCount && numberFormatter.format(countryCount)) || '--'}
@@ -131,7 +130,7 @@ export default function ValidatorMap({ minHeight }: Props) {
 
 					<div className="flex gap-6">
 						<NodeStat title="Validators">
-							{isPending && <Placeholder width="60px" height="0.8em" />}
+							{isLoading && <Placeholder width="60px" height="0.8em" />}
 							{
 								// Fetch received response with no errors and the value was not null
 								(!systemStateError &&
@@ -143,7 +142,7 @@ export default function ValidatorMap({ minHeight }: Props) {
 
 						{network === Network.MAINNET && (
 							<NodeStat title="Nodes">
-								{isPending && <Placeholder width="60px" height="0.8em" />}
+								{isLoading && <Placeholder width="60px" height="0.8em" />}
 								{(data?.nodeCount && numberFormatter.format(data?.nodeCount)) || '--'}
 							</NodeStat>
 						)}
