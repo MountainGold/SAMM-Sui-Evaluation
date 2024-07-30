@@ -1,3 +1,0 @@
-# sui-graphql-rpc
-
-TBD
