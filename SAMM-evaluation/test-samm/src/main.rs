@@ -122,7 +122,7 @@ async fn reset_env() -> Result<process::Child, anyhow::Error>
 #[tokio::main]
 // #[tokio::main(flavor = "multi_thread", worker_threads = 2000)]
 async fn main() -> Result<(), anyhow::Error> {
-
+    // We generate all transactions before execution. The interval of transactions is drawn from an exponential distribution. We need some redundant transactions to ensure that the execution time is long enough. we generate multi_factor times transactions for redundency.
     let mut multi_factor: f64 = 5.0;
     let num_clients: usize = input_integer("Please input num_clients: ");
     let mut min_tps: usize = input_integer("Please input min_tps: ");
@@ -218,6 +218,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let mut this_latency = 0.0;
             for t in 0..num_repeat
             {
+                // Print the information of the test
                 let this_num_contract = num_shards[i];
                 println!("Start test round: {}", t);
                 println!("Number of client: {}", num_clients);
@@ -225,6 +226,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 println!("Expected TPS: {}", current_frequency);
                 let mut sui_test_validator_process = reset_env().await?;
                 let (client, active_address) = client_info().await?;
+                // Get the gas object
                 let obj_list = get_gas_obj_one_layer(5, active_address).await?;
                 let coin_str = &obj_list[0];
                 let gas_object_id = coin_str.parse::<ObjectID>()?;
