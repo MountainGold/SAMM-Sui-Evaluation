@@ -283,7 +283,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 break;
             }
             let this_latency_ave = this_latency / num_repeat as f64;
-            let exp_success = (num_clients * current_frequency) as f64  * time_test / ONE_MINUTE as f64;
+            let exp_success = current_frequency as f64  * time_test  as f64;
             let success_ratio = (this_success as f64 / exp_success) / num_repeat as f64;
             if this_latency_ave < 1.75 && success_ratio > 0.8 && flag2s
             {
@@ -293,7 +293,7 @@ async fn main() -> Result<(), anyhow::Error> {
             {
                 flag2s = false;
             }
-            // If the latency is too large or the failure rate is too large, we can stop the test of this group
+            // If the latency is too large or the number of successful transactions is too smaller than expected, we stop the test of this group
             if this_latency_ave > 10.0
             {
                 println!("Too large lantencies!");
