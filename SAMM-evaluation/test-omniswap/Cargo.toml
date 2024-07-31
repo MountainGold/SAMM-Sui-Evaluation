@@ -1,0 +1,29 @@
+[package]
+name = "rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+sui-sdk = { path = "../../sui/crates/sui-sdk" }
+sui-transaction-builder = { path = "../../sui/crates/sui-transaction-builder" }
+sui-test-transaction-builder = { path = "../../sui/crates/sui-test-transaction-builder" }
+shared-crypto = { path = "../../sui/crates/shared-crypto" }
+sui-config = { path = "../../sui/crates/sui-config" }
+sui-keys = { path = "../../sui/crates/sui-keys" }
+sui-json-rpc-types = { path = "../../sui/crates/sui-json-rpc-types" }
+sui-json = { path = "../../sui/crates/sui-json" }
+sui-move-build = { path = "../../sui/crates/sui-move-build" }
+tokio = { version = "1.2", features = ["full"] }
+anyhow = "1.0"
+serde = "1.0"
+serde_json = "1.0"
+futures = "0.3"
+tracing = "0.1.40"
+reqwest = "0.11.22"
+rayon = "1.5"
+chrono = "0.4"
+rand = "0.8"
+rand_distr = "0.4"
+time = "0.3.31"
