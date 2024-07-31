@@ -33,6 +33,9 @@ mkdir suilog
 ### (Optional) mount the folder with RAM
 sudo mount -t tmpfs -o size=128G tmpfs suilog
 
+### Make sure opened files do not exceed the maximal
+ulimit -n 99999
+
 ### Run the test
 cargo run
 

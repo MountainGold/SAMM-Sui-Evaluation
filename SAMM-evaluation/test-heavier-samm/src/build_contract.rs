@@ -189,7 +189,8 @@ pub async fn split_coins_paralell(client: SuiClient, sender: SuiAddress, coin_id
 fn update_toml_samm(package_id: ObjectID, sender: SuiAddress)->Result<(), anyhow::Error>
 {
     // We need to update the Move.toml file with the package_id and the sender address
-    let destination_file = "../samm/Move.toml"; // Replace with the path to the Move.toml file
+    // Replace with the path to the Move.toml file
+    let destination_file = "../samm-boost/Move.toml"; 
     let package_amm = package_id.to_string(); 
     let address = sender.to_string();
     let file = File::open(destination_file)?;
@@ -234,8 +235,8 @@ fn update_toml_samm(package_id: ObjectID, sender: SuiAddress)->Result<(), anyhow
 pub async fn samm_builder(client: SuiClient, sender: SuiAddress, gas_object: ObjectID)-> Result<ContractInfo, anyhow::Error>
 {
     // Initiate Move.toml file (will change due to test coins after each experiement)
-    let source_file_path = "../samm/Move_backup.toml";
-    let target_file_path = "../samm/Move.toml";
+    let source_file_path = "../samm-boost/Move_backup.toml";
+    let target_file_path = "../samm-boost/Move.toml";
     fs::copy(source_file_path, target_file_path)?;
     // println!("test");
     // Results needed
@@ -245,7 +246,7 @@ pub async fn samm_builder(client: SuiClient, sender: SuiAddress, gas_object: Obj
     let mut faucet_id = "0x1".parse::<ObjectID>()?;
 
     let test_transaction_sender = TestTransactionSender::new(sender, gas_object, client.clone());
-    let transaction_response = test_transaction_sender.publish_package("samm").await?;
+    let transaction_response = test_transaction_sender.publish_package("samm-boost").await?;
     // println!("{:?}", transaction_response.clone());
     // println!("{:?}", transaction_response);
     let obj_changes = transaction_response.clone().object_changes.unwrap();
@@ -281,7 +282,7 @@ pub async fn samm_builder(client: SuiClient, sender: SuiAddress, gas_object: Obj
     // Publish test coins
     update_toml_samm(packageid, sender);
     let test_transaction_sender = TestTransactionSender::new(sender, gas_object, client.clone());
-    let transaction_response = test_transaction_sender.publish_package("samm/test_coins").await?;
+    let transaction_response = test_transaction_sender.publish_package("samm-boost/test_coins").await?;
     // rintln!("{:?}", transaction_response.clone());
     // let x = transaction_response.clone().effects.unwrap().status().is_ok();
     if transaction_response.clone().effects.unwrap().status().is_ok() != true
